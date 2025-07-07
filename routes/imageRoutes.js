@@ -11,4 +11,10 @@ router.get("/usuarios/:usuarioId/avatar",
     imagesController.obtenerAvatarUsuario
 );
 
+// Obtener avatar
+router.get("/firmas/:archivo", 
+    imagesController.obtenerFirmaUsuario
+);
+
+
 module.exports = router

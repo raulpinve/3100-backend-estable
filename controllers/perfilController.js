@@ -252,7 +252,6 @@ const actualizarAvatar = async (req, res, next) => {
             data: { ...userConAvatar }
         });
     } catch (error) {
-        console.log(error)
         next(error);
     }
 };

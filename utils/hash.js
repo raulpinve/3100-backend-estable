@@ -2,7 +2,7 @@ const TOKEN_EXPIRATION_TIME = process.env.TOKEN_EXPIRATION_TIME;
 const PRIVATE_KEY = process.env.SECRET_KEY_JWT || "";
 const SECRET = process.env.SECRET_KEY_IMAGE;
 const jwt = require("jsonwebtoken");
-const tiposValidos = ['usuario'];
+const tiposValidos = ["usuario", "firma"];
 const bcrypt = require("bcrypt");
 
 const generarTokenImagen = (tipoEntidad, id, thumbnail = false) => {
@@ -13,6 +13,17 @@ const generarTokenImagen = (tipoEntidad, id, thumbnail = false) => {
     const token = jwt.sign({ [campoId]: id }, SECRET, { expiresIn: '1h' });
     return `/images/${tipoEntidad}s/${id}/avatar${thumbnail ? "/thumbnail" : ""}?token=${token}`;
 }
+
+const generarTokenFirma = (archivoNombre) => {
+    if (!archivoNombre || typeof archivoNombre !== "string") {
+        throw new Error("Nombre de archivo inválido para firma.");
+    }
+
+    const token = jwt.sign({ tipo: "firma", archivo: archivoNombre }, SECRET, { expiresIn: "10m" });
+
+    // Devuelve la URL de acceso con token y nombre del archivo en la ruta
+    return `/images/firmas/${archivoNombre}?token=${token}`;
+};
 
 const hashearContrasena = (password) => {
     return bcrypt.hashSync(password, 10);
@@ -66,6 +77,21 @@ const verificarTokenImagen = (token, idEsperado, campoId) => {
     }
 }
 
+const verificarTokenFirma = (token, archivoEsperado) => {
+    try {
+        const payload = jwt.verify(token, SECRET);
+
+        // Validar tipo y nombre de archivo
+        if (payload.tipo !== "firma" || payload.archivo !== archivoEsperado) {
+            return null;
+        }
+
+        return payload;
+    } catch (err) {
+        return null;
+    }
+};
+
 module.exports = {
     generarTokenAutenticacion,
     generarTokenImagen,
@@ -73,5 +99,7 @@ module.exports = {
     compararPasswordHasheada,
     generarTokenRestablecerContrasena, 
     validatePassword,
-    verificarTokenImagen
+    verificarTokenImagen,
+    generarTokenFirma,
+    verificarTokenFirma
 }

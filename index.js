@@ -12,8 +12,6 @@ app.get('/', (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/firmas-archivos', express.static(path.join(__dirname, 'firmas')));
-
 const { validarToken } = require("./controllers/loginController");
 const handleErrorResponse = require('./errors/handleErrorResponse');
 

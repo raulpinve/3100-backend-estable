@@ -3,12 +3,14 @@ const { throwBadRequestError, throwNotFoundError } = require("../errors/throwHTT
 const { pool } = require("../initDB");
 const path = require("path");
 const fs = require("fs");
+const { generarTokenFirma } = require("../utils/hash");
 
 const crearFirma = async (req, res, next) => {
     const client = await pool.connect();
     try {
         const { id: usuarioId, primerNombre, apellidos } = req.usuario;
 
+        // Verifica si ya tiene firma
         const { rowCount: existeFirma } = await client.query(
             "SELECT 1 FROM firmas WHERE usuario_id = $1",
             [usuarioId]
@@ -18,7 +20,7 @@ const crearFirma = async (req, res, next) => {
             throwBadRequestError("archivo", "El usuario ya tiene una firma registrada.");
         }
 
-        const file = req.files["archivo"] && req.files["archivo"][0];
+        const file = req.files?.archivo?.[0];
         if (!file) {
             throwBadRequestError("archivo", "No se ha subido ningún archivo.");
         }
@@ -32,31 +34,41 @@ const crearFirma = async (req, res, next) => {
         }
 
         const newFilename = file.newFilename;
-        await createFolder("./firmas");
-        
-        const newPath = `./firmas/${newFilename}`;
-        await uploadFile(file.filepath, newPath);
+
+        // Carpeta general
+        const firmaDir = path.join(__dirname, `../uploads/firmas`);
+        await createFolder(firmaDir);
+
+        const fullPath = path.join(firmaDir, newFilename);
+        await uploadFile(file.filepath, fullPath);
 
         const nombresCompletos = `${primerNombre} ${apellidos}`;
         const rol = "auditor";
 
         const insertQuery = `
             INSERT INTO firmas (nombres_completos, rol, archivo, usuario_id)
-                VALUES ($1, $2, $3, $4)
+            VALUES ($1, $2, $3, $4)
             RETURNING archivo`;
 
-        const { rows } = await client.query(insertQuery, [nombresCompletos, rol, newFilename, usuarioId]);
-        const archivo = rows[0]?.archivo;
+        const { rows } = await client.query(insertQuery, [
+            nombresCompletos,
+            rol,
+            newFilename,
+            usuarioId
+        ]);
 
-        let rutaFirma;
-        const filePath = path.join(__dirname, `../firmas/${archivo}`);
-        if (checkFileExists(filePath)) {
-            rutaFirma = `/firmas-archivos/${archivo}`;
+        const archivo = rows[0]?.archivo;
+        const rutaCompleta = path.join(__dirname, `../uploads/firmas/${archivo}`);
+
+        let rutaFirma = null;
+        if (checkFileExists(rutaCompleta)) {
+            rutaFirma = generarTokenFirma(archivo);
         }
 
         return res.status(201).json({
             statusCode: 201,
             status: "success",
+            message: "Firma creada correctamente.",
             data: {
                 rutaFirma,
             },
@@ -66,7 +78,7 @@ const crearFirma = async (req, res, next) => {
     } finally {
         client.release();
     }
-}
+};
 
 const obtenerFirma = async (req, res, next) => {
     try {
@@ -85,13 +97,13 @@ const obtenerFirma = async (req, res, next) => {
         const firmaEncontrada = result.rows[0];
         let rutaFirma = `/images/image-default.png`;
 
-        const filePath = path.join(__dirname, `../firmas/${firmaEncontrada.archivo}`);
+        const filePath = path.join(__dirname, `../uploads/firmas/${firmaEncontrada.archivo}`);
         if (checkFileExists(filePath)) {
-            rutaFirma = `/firmas-archivos/${firmaEncontrada.archivo}`;
+            rutaFirma = generarTokenFirma(firmaEncontrada.archivo);
         }
 
         return res.status(200).json({
-            statusCode: 300,
+            statusCode: 200,
             status: "success",
             data: {
                 rutaFirma
@@ -100,7 +112,7 @@ const obtenerFirma = async (req, res, next) => {
     } catch (error) {
         next(error);
     }
-}
+};
 
 const eliminarFirma = async (req, res, next) => {
     const client = await pool.connect();

@@ -1,4 +1,4 @@
-const { verificarTokenImagen } = require("../utils/hash");
+const { verificarTokenImagen, verificarTokenFirma } = require("../utils/hash");
 const { setCabecerasSinCacheImg } = require("../utils/utils");
 const path = require("path");
 const rutaDefault = path.resolve(__dirname, '../public/img/image-default.png');
@@ -64,6 +64,28 @@ exports.obtenerAvatarUsuario = async (req, res, next) => {
 
         setCabecerasSinCacheImg(res);
         res.status(200).sendFile(rutaFinal);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.obtenerFirmaUsuario = async (req, res, next) => {
+    try {
+        const { archivo } = req.params;
+        const { token } = req.query;
+
+        const payload = verificarTokenFirma(token, archivo);
+
+        if (!payload) {
+            setCabecerasSinCacheImg(res);
+            return res.status(200).sendFile(rutaDefault);
+        }
+
+        const rutaFirma = path.resolve(__dirname, "../uploads/firmas", archivo);
+        const rutaFinal = fs.existsSync(rutaFirma) ? rutaFirma : rutaDefault;
+
+        setCabecerasSinCacheImg(res);
+        return res.status(200).sendFile(rutaFinal);
     } catch (error) {
         next(error);
     }
