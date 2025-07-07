@@ -1,10 +1,13 @@
 const router = require('express').Router()
 const parseForm = require('../controllers/parseFormController');
 const perfilController = require("../controllers/perfilController")
-const { validateEmail, validarActualizarPassword, validateActualizarPerfil } = require('../validators/perfilValidators')
+const { validateEmail, validarActualizarPassword, validateActualizarPerfil, validarUsuarioId } = require('../validators/perfilValidators')
 
 // Actualizar e-mail
 router.put("/email", validateEmail, perfilController.actualizarEmail);
+
+// Obtener perfil 
+router.get("/:usuarioId", validarUsuarioId, perfilController.obtenerPerfil)
 
 // Enviar e-mail de verificación
 router.post("/verificar-email", perfilController.enviarCorreoConfirmacion);

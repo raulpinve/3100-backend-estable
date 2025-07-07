@@ -3,10 +3,46 @@ const { enviarEmailVerificacion } = require("../utils/emailUtils");
 const { pool } = require("../initDB");
 const bcrypt = require("bcrypt");
 const { validatePassword, hashearContrasena, generarTokenImagen } = require("../utils/hash");
-const { validateMimeTypeFile, validateSizeFile } = require("../utils/utils");
+const { validateMimeTypeFile, validateSizeFile, snakeToCamel } = require("../utils/utils");
 const { createFolder, uploadFile, deleteFile } = require("../utils/files");
 const sharp = require("sharp");
 const path = require("path");
+
+const obtenerPerfil = async (req, res, next) => {
+    try {
+        const { usuarioId } = req.params;
+
+        const { rows } = await pool.query(`
+            SELECT id, primer_nombre, apellidos, email, username, rol, avatar, avatar_thumbnail
+            FROM usuarios
+            WHERE  id = $1 AND estado = 'activo'
+        `, [usuarioId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({
+                statusCode: 404,
+                status: "error",
+                message: "Usuario no encontrado."
+            });
+        }
+        const usuario = rows[0];
+        const usuarioCamel = snakeToCamel(usuario);
+
+        const perfilProcesado = {
+            ...usuarioCamel,
+            avatar: usuario.avatar ? generarTokenImagen("usuario", usuario.id) : null,
+            avatarThumbnail: usuario.avatar_thumbnail ? generarTokenImagen("usuario", usuario.id, true): null
+        };
+
+        return res.status(200).json({
+            statusCode: 200,
+            status: "success",
+            data: perfilProcesado
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
 const actualizarEmail = async (req, res, next) => {
     const client = await pool.connect();
@@ -297,6 +333,7 @@ const eliminarAvatar = async (req, res, next) => {
 
 module.exports = {
     actualizarEmail,
+    obtenerPerfil,
     enviarCorreoConfirmacion,
     actualizarPassword,
     editarPerfil,
