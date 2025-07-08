@@ -1,10 +1,10 @@
 const { throwForbiddenError } = require("../errors/throwHTTPErrors");
 
-const verificarPermisosSuperadministradores = (req, res, next) => {
+const verificarPermisosAdministradores = (req, res, next) => {
     const {rol} = req.usuario;
 
     try {
-        if(rol !== "superadministrador"){
+        if(rol !== "administrador"){
             throwForbiddenError("No estás autorizado para realizar esta acción.");
         }    
         return next()
@@ -13,4 +13,4 @@ const verificarPermisosSuperadministradores = (req, res, next) => {
     }
 }
 
-module.exports = verificarPermisosSuperadministradores
+module.exports = verificarPermisosAdministradores

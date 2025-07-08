@@ -1,7 +1,7 @@
 const { pool } = require("../initDB");
 const { throwNotFoundError } = require("../errors/throwHTTPErrors");
 const { snakeToCamel } = require("../utils/utils");
-const { hashearContrasena } = require("../utils/hash");
+const { hashearContrasena, generarTokenImagen } = require("../utils/hash");
 
 // Crear usuario
 const crearUsuario = async (req, res, next) => {
@@ -36,19 +36,67 @@ const crearUsuario = async (req, res, next) => {
 
 //  Obtener todos los usuarios (básico)
 const obtenerUsuarios = async (req, res, next) => {
-    const ownerId = req.usuario.id; 
-    try {
-        const result = await pool.query(`
-            SELECT id, primer_nombre, apellidos, username, email, rol, estado
-            FROM usuarios
-            WHERE eliminado = false AND owner = $1
-            ORDER BY created_at DESC
-        `, [ ownerId ]);
+    const ownerId = req.usuario.id;
+    const { consulta, pagina = 1, tamanoPagina = 7 } = req.query;
 
-        res.status(200).json({
+    const paginaInt = parseInt(pagina);
+    const tamanoPaginaInt = parseInt(tamanoPagina);
+    const offset = (paginaInt - 1) * tamanoPaginaInt;
+
+    try {
+        let filtros = `estado != 'eliminado' AND owner = $1`;
+        let valores = [ownerId];
+        let contador = 2;
+
+        if (consulta) {
+            filtros += ` AND (
+                primer_nombre ILIKE $${contador} OR 
+                apellidos ILIKE $${contador} OR 
+                email ILIKE $${contador} OR 
+                username ILIKE $${contador}
+            )`;
+            valores.push(`%${consulta}%`);
+            contador++;
+        }
+
+        // Total de usuarios
+        const totalUsuariosQuery = await pool.query(`
+            SELECT COUNT(*) AS total
+            FROM usuarios
+            WHERE ${filtros}
+        `, valores);
+
+        const totalUsuarios = parseInt(totalUsuariosQuery.rows[0].total, 10);
+        const totalPaginas = Math.ceil(totalUsuarios / tamanoPaginaInt) || 1;
+
+        valores.push(tamanoPaginaInt, offset);
+
+        // Consulta paginada
+        const result = await pool.query(`
+            SELECT id, primer_nombre, apellidos, username, email, rol, estado, avatar, avatar_thumbnail
+            FROM usuarios
+            WHERE ${filtros}
+            ORDER BY created_at DESC
+            LIMIT $${contador} OFFSET $${contador + 1}
+        `, valores);
+
+        const usuariosProcesados = result.rows.map(usuario => {
+            const usuarioCamel = snakeToCamel(usuario);
+            return {
+                ...usuarioCamel,
+                avatar: usuario.avatar ? generarTokenImagen("usuario", usuario.id) : null,
+                avatarThumbnail: usuario.avatar_thumbnail ? generarTokenImagen("usuario", usuario.id, true) : null
+            };
+        });
+
+        return res.status(200).json({
             statusCode: 200,
             status: "success",
-            data: result.rows.map(snakeToCamel)
+            paginacion: {
+                paginaActual: paginaInt,
+                totalPaginas
+            },
+            data: usuariosProcesados
         });
     } catch (error) {
         next(error);
@@ -63,7 +111,7 @@ const obtenerUsuario = async (req, res, next) => {
         const result = await pool.query(`
             SELECT id, primer_nombre, apellidos, username, email, rol, estado
             FROM usuarios
-            WHERE id = $1 AND eliminado = false
+            WHERE id = $1 AND estado != 'eliminado'
         `, [ usuarioId ]);
 
         if (result.rowCount === 0) {
@@ -92,7 +140,7 @@ const actualizarUsuario = async (req, res, next) => {
                 apellidos = $2,
                 username = $3,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $4 AND eliminado = false
+            WHERE id = $4 AND estado != 'eliminado'
             RETURNING id, primer_nombre, apellidos, username
             `, [primerNombre, apellidos, username, usuarioId]);
 
@@ -121,7 +169,7 @@ const eliminarUsuario = async (req, res, next) => {
             UPDATE usuarios
             SET estado = 'eliminado',
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1 AND eliminado = false
+            WHERE id = $1 AND estado != 'eliminado'
         `, [usuarioId]);
 
         if (result.rowCount === 0) {

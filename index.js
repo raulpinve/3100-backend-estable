@@ -18,6 +18,7 @@ const handleErrorResponse = require('./errors/handleErrorResponse');
 // Rutas
 const itemsEvaluacionRoutes = require("./routes/itemsEvaluacionRoutes");
 const resultadosItemsRoutes = require("./routes/resultadosItemsRoutes");
+const usuarioEmpresaRoutes = require("./routes/usuarioEmpresaRoutes");
 const auditoriasRoutes = require("./routes/auditoriasRoutes");
 const criterioRoutes = require("./routes/criteriosRoutes");
 const usuarioRoutes = require("./routes/usuarioRoutes");
@@ -31,6 +32,7 @@ const imageRoutes = require("./routes/imageRoutes");
 app.use("/items-evaluacion", validarToken, itemsEvaluacionRoutes);
 app.use("/resultados-items", validarToken, resultadosItemsRoutes);
 app.use("/auditorias", validarToken, auditoriasRoutes);
+app.use("/usuario-privilegios", validarToken, usuarioEmpresaRoutes);
 app.use("/criterios", validarToken, criterioRoutes);
 app.use("/empresas", validarToken, empresaRoutes);
 app.use("/grupos", validarToken, gruposRoutes);

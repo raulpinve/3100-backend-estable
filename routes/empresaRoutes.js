@@ -13,7 +13,7 @@ router.post("/",
             // Solo superadministradores pueden crear empresas
             const {rol} = req.usuario;
         
-            if(rol !== "superadministrador"){
+            if(rol !== "administrador"){
                 throwForbiddenError("No estás autorizado para realizar esta acción.")
             }
             return next();
@@ -40,7 +40,19 @@ router.put("/:empresaId",
     validarEmpresaId, 
     validarActualizarEmpresa, 
     obtenerEmpresaId,
-    verificarPermisos("editar"),
+    (req, res, next) => {
+        try {
+            // Solo superadministradores pueden crear empresas
+            const {rol} = req.usuario;
+        
+            if(rol !== "administrador"){
+                throwForbiddenError("No estás autorizado para realizar esta acción.")
+            }
+            return next();
+        } catch (error) {
+            next(error)        
+        }
+    },
     empresasController.actualizarEmpresa
 );
 
@@ -48,7 +60,19 @@ router.put("/:empresaId",
 router.delete("/:empresaId", 
     validarEmpresaId, 
     obtenerEmpresaId,
-    verificarPermisos("eliminar"),
+    (req, res, next) => {
+        try {
+            // Solo superadministradores pueden crear empresas
+            const {rol} = req.usuario;
+        
+            if(rol !== "administrador"){
+                throwForbiddenError("No estás autorizado para realizar esta acción.")
+            }
+            return next();
+        } catch (error) {
+            next(error)        
+        }
+    },
     empresasController.eliminarEmpresa
 );
 

@@ -18,7 +18,7 @@ const validarCrearUsuario = [
         .notEmpty().withMessage("Debe proporcionar un E-mail.")
         .isEmail().withMessage("Escriba un e-mail correcto.")
         .custom(async email => {
-            const { rowCount } = await pool.query("SELECT 1 FROM usuarios WHERE email = $1 AND eliminado = false", [ email ]);
+            const { rowCount } = await pool.query("SELECT 1 FROM usuarios WHERE email = $1 AND estado != 'eliminado'", [ email ]);
             if(rowCount > 0){
                 throw new Error("El e-mail ya está registrado.");
             }
@@ -28,7 +28,7 @@ const validarCrearUsuario = [
         .matches(/^[a-zA-Z0-9_]{3,20}$/)
         .withMessage("El username debe tener entre 3 y 20 caracteres y solo puede contener letras, números y guiones bajos.")
         .custom(async username => {
-            const { rowCount } = await pool.query("SELECT 1 FROM usuarios WHERE username = $1 AND eliminado = false", [ username ]);
+            const { rowCount } = await pool.query("SELECT 1 FROM usuarios WHERE username = $1 AND estado != 'eliminado'", [ username ]);
             if(rowCount > 0){
                 throw new Error("El username ya está en uso.");
             }
@@ -50,7 +50,7 @@ const validarActualizarUsuario = [
         .withMessage("El username debe tener entre 3 y 20 caracteres y solo puede contener letras, números y guiones bajos.")
         .custom(async (username, { req }) => {
             const id = req.params.id;
-            const { rowCount } = await pool.query("SELECT 1 FROM usuarios WHERE username = $1 AND id != $2 AND eliminado = false", [ username, id ]);
+            const { rowCount } = await pool.query("SELECT 1 FROM usuarios WHERE username = $1 AND id != $2 AND estado != 'eliminado'", [ username, id ]);
             if(rowCount > 0){
                 throw new Error("El username ya está en uso.");
             }

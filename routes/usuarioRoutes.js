@@ -2,37 +2,41 @@ const express = require("express");
 const router = express.Router();
 const usuarioController = require("../controllers/usuarioController");
 const { validarActualizarUsuario, validarCrearUsuario } = require("../validators/usuarioValidators");
-const verificarPermisosSuperadministradores = require("../middlewares/verificarPermisosSuperadministradores");
+const verificarPermisosAdministradores = require("../middlewares/verificarPermisosAdministradores");
+const { validarUsuarioId } = require("../validators/perfilValidators");
 
 // Crear usuario 
 router.post("/",
   validarCrearUsuario,
-  verificarPermisosSuperadministradores,
+  verificarPermisosAdministradores,
   usuarioController.crearUsuario
 );
 
 // Obtener todos los usuarios
 router.get("/",
-  verificarPermisosSuperadministradores,
+  verificarPermisosAdministradores,
   usuarioController.obtenerUsuarios
 );
 
 // Obtener un usuario por ID
 router.get("/:usuarioId",
-  verificarPermisosSuperadministradores,
+  validarUsuarioId,
+  verificarPermisosAdministradores,
   usuarioController.obtenerUsuario
 );
 
 // Actualizar usuario
 router.put("/:usuarioId",
+  validarUsuarioId,
   validarActualizarUsuario,
-  verificarPermisosSuperadministradores,
+  verificarPermisosAdministradores,
   usuarioController.actualizarUsuario
 );
 
 // Eliminar usuario (borrado lógico)
 router.delete("/:usuarioId",
-  verificarPermisosSuperadministradores,
+  validarUsuarioId,
+  verificarPermisosAdministradores,
   usuarioController.eliminarUsuario
 );
 
