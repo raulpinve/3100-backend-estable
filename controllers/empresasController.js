@@ -57,47 +57,52 @@ const obtenerEmpresa = async (req, res, next) => {
 
 // Devuelve solo las empresas activas
 const obtenerEmpresas = async (req, res, next) => {
-    try {
-        const {rol, owner} = req.usuario;
+    const { rol, owner } = req.usuario;
+    const ownerId = rol === "administrador" ? req.usuario.id : owner;
 
-        // Obtener el owner de las empresas
-        let ownerId; 
-        if(rol === "superadministrador"){
-            ownerId = req.usuario.id;
-        }else{
-            ownerId = owner;
+    const { consulta } = req.query;
+    const pagina = parseInt(req.query.page) || 1;
+    const tamanoPagina = parseInt(req.query.limit) || 10;
+    const offset = (pagina - 1) * tamanoPagina;
+
+    try {
+        let filtros = `owner = $1`;
+        let valores = [ownerId];
+        let contador = 2;
+
+        if (consulta) {
+            filtros += ` AND nombre ILIKE $${contador}`;
+            valores.push(`%${consulta}%`);
+            contador++;
         }
 
-        const pagina = parseInt(req.query.page) || 1;
-        const limite = parseInt(req.query.limit) || 10;
-        const offset = (pagina - 1) * limite;
+        // 1. Contar total de empresas
+        const { rows: totalRows } = await pool.query(`
+            SELECT COUNT(*) AS total FROM empresas WHERE ${filtros}
+        `, valores);
 
-        // 1. Total de empresas del usuario
-        const totalQuery = `
-            SELECT COUNT(*) FROM empresas
-            WHERE owner = $1
-        `;
-        const totalResult = await pool.query(totalQuery, [ownerId]);
-        const totalEmpresas = parseInt(totalResult.rows[0].count);
-        const totalPaginas = Math.ceil(totalEmpresas / limite);
+        const totalEmpresas = parseInt(totalRows[0].total);
+        const totalPaginas = Math.ceil(totalEmpresas / tamanoPagina) || 1;
 
-        // 2. Empresas paginadas
-        const dataQuery = `
-            SELECT * FROM empresas
-            WHERE owner = $1
+        // 2. Obtener datos paginados
+        valores.push(tamanoPagina, offset);
+
+        const { rows: empresas } = await pool.query(`
+            SELECT id, nombre, owner, created_at
+            FROM empresas
+            WHERE ${filtros}
             ORDER BY created_at DESC NULLS LAST
-            LIMIT $2 OFFSET $3
-        `;
-        const {rows: rowsEmpresas } = await pool.query(dataQuery, [ownerId, limite, offset]);
+            LIMIT $${contador} OFFSET $${contador + 1}
+        `, valores);
 
         return res.status(200).json({
             statusCode: 200,
             status: "success",
             paginacion: {
                 paginaActual: pagina,
-                totalPaginas
+                totalPaginas,
             },
-            data: rowsEmpresas.map(snakeToCamel)
+            data: empresas.map(empresa => snakeToCamel(empresa))
         });
     } catch (error) {
         next(error);
