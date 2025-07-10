@@ -3,12 +3,12 @@ const { snakeToCamel, ordenarItems } = require("../utils/utils");
 
 // Crear
 const crearItem = async (req, res, next) => {
-    const { item, descripcion, estandar, criterioId, titulo } = req.body;
+    const { item, descripcion, estandar, criterioId, titulo, highlightColor } = req.body;
     try {
         const result = await pool.query(
-            `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id, es_titulo)
-                VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [item, descripcion, estandar, criterioId, titulo]
+            `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id, es_titulo, highlight_color)
+                VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+            [item, descripcion, estandar, criterioId, titulo, highlightColor]
         );
 
         const itemResult = result.rows[0];
@@ -84,7 +84,7 @@ const obtenerItemPorId = async (req, res, next) => {
 // Actualizar
 const actualizarItem = async (req, res, next) => {
     const { itemId } = req.params;
-    const { item, descripcion, estandar, titulo } = req.body;
+    const { item, descripcion, estandar, titulo, highlightColor } = req.body;
     try {
         const result = await pool.query(
             `UPDATE items_evaluacion
@@ -92,10 +92,11 @@ const actualizarItem = async (req, res, next) => {
                     descripcion = $2,
                     estandar = $3,
                     es_titulo = $4,
+                    highlight_color = $5,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $5
+                WHERE id = $6
                 RETURNING *`,
-            [item, descripcion, estandar, titulo, itemId]
+            [item, descripcion, estandar, titulo, highlightColor, itemId]
         );
         if (result.rows.length === 0) throwNotFoundError("El item no existe.");
 

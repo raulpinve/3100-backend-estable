@@ -74,6 +74,7 @@ CREATE TABLE items_evaluacion (
         'interdependencia',
         'noAplica'
     )),
+    highlight_color TEXT DEFAULT NULL
     es_titulo BOOLEAN DEFAULT false,
     ocultar_item BOOLEAN DEFAULT false,
     criterio_id UUID NOT NULL REFERENCES criterios_evaluacion(id) ON DELETE CASCADE,

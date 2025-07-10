@@ -18,9 +18,17 @@ const validarItem = () => [
     body("estandar")
         .isIn(arrayEstandar)
         .withMessage('Debe seleccionar un estandar correcto.'),
+
     body("titulo")
         .isBoolean()
-        .withMessage('El titulo debe ser de tipo booleano')
+        .withMessage('El titulo debe ser de tipo booleano'),
+    body("highlightColor")
+        .custom((value) => {
+            if (value === null || value === "") return true;
+            return ["yellow", "red", "gray", "blue", "green"].includes(value);
+        })
+        .withMessage("highlightColor debe ser un color válido, vacío o null.")
+
 ];
 
 // Crear item
