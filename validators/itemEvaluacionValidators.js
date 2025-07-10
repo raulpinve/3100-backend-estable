@@ -2,6 +2,7 @@ const manejarErroresDeValidacion = require("./manejarErroresDeValidacion");
 const { throwNotFoundError } = require("../errors/throwHTTPErrors");
 const { body } = require("express-validator");
 const { pool } = require("../initDB");
+const { validarUUID } = require("../utils/utils");
 
 const regexItem = /^\d+(\.\d+)*$/;
 const arrayEstandar = [
@@ -17,6 +18,9 @@ const validarItem = () => [
     body("estandar")
         .isIn(arrayEstandar)
         .withMessage('Debe seleccionar un estandar correcto.'),
+    body("titulo")
+        .isBoolean()
+        .withMessage('El titulo debe ser de tipo booleano')
 ];
 
 // Crear item
@@ -31,14 +35,14 @@ const validarCrearItem = [
     body("item")
         .matches(regexItem).withMessage('El formato no es válido. Debe ser como "1", "1.1", "1.1.1", etc.')
         .custom(async (value, { req }) => {
-            const { criterio_id } = req.body;
-            if (value && criterio_id) {
+            const { criterioId } = req.body;
+            if (value && criterioId) {
                 const existe = await pool.query(
                     `SELECT id FROM items_evaluacion WHERE item = $1 AND criterio_id = $2`,
-                    [value, criterio_id]
+                    [value, criterioId]
                 );
                 if (existe.rowCount > 0) {
-                    throw new Error("El ítem ya se encuentra en uso en ese criterio");
+                    throw new Error("El ítem ya se encuentra en uso.");
                 }
             }
             return true;
@@ -60,14 +64,14 @@ const validarActualizarItem = [
                 const actual = await pool.query("SELECT * FROM items_evaluacion WHERE id = $1", [itemId]);
                 if (actual.rowCount === 0) throw new Error("Item no encontrado");
 
-                const { criterio_id, item } = actual.rows[0];
+                const { criterioId, item } = actual.rows[0];
                 if (item !== value) {
                     const existe = await pool.query(
                         `SELECT id FROM items_evaluacion WHERE item = $1 AND criterio_id = $2 AND id <> $3`,
-                        [value, criterio_id, itemId]
+                        [value, criterioId, itemId]
                     );
                     if (existe.rowCount > 0) {
-                        throw new Error("El ítem ya se encuentra en uso en este criterio");
+                        throw new Error("El ítem ya se encuentra en uso.");
                     }
                 }
             }
@@ -80,7 +84,7 @@ const validarActualizarItem = [
 const validarItemId = async (req, res, next) => {
     try {
         const { itemId } = req.params;
-        if (isNaN(itemId)) {
+        if (!validarUUID(itemId)) {
             throwNotFoundError("El ID del item de evaluación no es correcto.");
         }
         const result = await pool.query("SELECT id FROM items_evaluacion WHERE id = $1", [itemId]);

@@ -54,6 +54,7 @@ const obtenerCriterios = async (req, res, next) => {
             return {
                 id: criterio.id, 
                 nombre: criterio.nombre,
+                tipo: criterio.tipo,
                 grupoId: criterio.grupoId
             }
         })

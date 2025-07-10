@@ -18,7 +18,7 @@ router.post("/",
 );
 
 // Obtener criterio por grupo ID
-router.get("/:grupoId/grupo", 
+router.get("/:grupoId/grupos", 
     validarGrupoId, 
     verificarPermisosEstandares,
     criteriosController.obtenerCriterios

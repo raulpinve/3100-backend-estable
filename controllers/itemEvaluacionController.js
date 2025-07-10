@@ -1,13 +1,14 @@
 const { pool } = require("../initDB");
+const { snakeToCamel, ordenarItems } = require("../utils/utils");
 
 // Crear
 const crearItem = async (req, res, next) => {
-    const { item, descripcion, estandar, criterioId } = req.body;
+    const { item, descripcion, estandar, criterioId, titulo } = req.body;
     try {
         const result = await pool.query(
-            `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id)
-                VALUES ($1, $2, $3, $4) RETURNING *`,
-            [item, descripcion, estandar, criterioId]
+            `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id, es_titulo)
+                VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [item, descripcion, estandar, criterioId, titulo]
         );
 
         const itemResult = result.rows[0];
@@ -45,13 +46,7 @@ const obtenerItems = async (req, res, next) => {
         const totalRegistros = parseInt(totalQuery.rows[0].count);
         const totalPaginas = Math.ceil(totalRegistros / limite);
 
-        const items = itemsQuery.rows.map(item => ({
-            id: item.id,
-            item: item.item,
-            descripcion: item.descripcion,
-            estandar: item.estandar,
-            criterioId: item.criterio_id
-        }));
+        const items = ordenarItems(itemsQuery.rows);
 
         return res.status(200).json({
             statusCode: 200,
@@ -60,7 +55,7 @@ const obtenerItems = async (req, res, next) => {
                 paginaActual: pagina,
                 totalPaginas
             },
-            data: items
+            data: items.map(snakeToCamel)
         });
     } catch (err) {
         next(err);
@@ -78,12 +73,7 @@ const obtenerItemPorId = async (req, res, next) => {
         return res.status(200).json({
             statusCode: 200,
             status: "success",
-            data: {
-                id: item.id,
-                descripcion: item.descripcion,
-                estandar: item.estandar,
-                criterioId: item.criterioId,
-            }
+            data: snakeToCamel(item)
         });
 
     } catch (err) {
@@ -94,18 +84,18 @@ const obtenerItemPorId = async (req, res, next) => {
 // Actualizar
 const actualizarItem = async (req, res, next) => {
     const { itemId } = req.params;
-    const { item, descripcion, estandar, criterio_id } = req.body;
+    const { item, descripcion, estandar, titulo } = req.body;
     try {
         const result = await pool.query(
             `UPDATE items_evaluacion
                 SET item = $1,
                     descripcion = $2,
                     estandar = $3,
-                    criterio_id = $4,
+                    es_titulo = $4,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $5
                 RETURNING *`,
-            [item, descripcion, estandar, criterio_id, itemId]
+            [item, descripcion, estandar, titulo, itemId]
         );
         if (result.rows.length === 0) throwNotFoundError("El item no existe.");
 
@@ -115,12 +105,7 @@ const actualizarItem = async (req, res, next) => {
             statusCode: 200,
             status: "success",
             message: "Item actualizado con éxito.",
-            data: {
-                id: itemResult.id,
-                descripcion: itemResult.descripcion,
-                estandar: itemResult.estandar,
-                criterioId: itemResult.criterioId,
-            }
+            data: snakeToCamel(itemResult)
         });
     } catch (err) {
         next(err);
