@@ -1,5 +1,6 @@
 const { throwNotFoundError } = require("../errors/throwHTTPErrors");
 const { pool } = require("../initDB");
+const { snakeToCamel } = require("../utils/utils");
 
 // Crear criterio
 const crearCriterio = async (req, res, next) => {
@@ -76,10 +77,12 @@ const obtenerCriterios = async (req, res, next) => {
 // Obtener un criterio por ID
 const obtenerCriterioPorId = async (req, res) => {
     const { criterioId } = req.params;
-
     try {
         const { rows: rowsCriterios } = await pool.query(
-            `SELECT * FROM criterios_evaluacion WHERE id = $1`,
+            `SELECT ce.*, ga.nombre as nombre_grupo FROM criterios_evaluacion as ce
+                INNER JOIN grupos_autoevaluacion as ga
+                ON ce.grupo_id = ga.id
+                WHERE ce.id = $1`,
             [criterioId]
         );
         if (rowsCriterios.length === 0) {
@@ -89,15 +92,9 @@ const obtenerCriterioPorId = async (req, res) => {
         return res.status(200).json({
             statusCode: 200,
             status: "success",
-            data: {
-                id: rowsCriterios[0].id, 
-                nombre: rowsCriterios[0].nombre,
-                grupoId: rowsCriterios[0].grupo_id
-            },
+            data: snakeToCamel(rowsCriterios[0]),
         });
-
     } catch (error) {
-        console.error("Error al obtener criterio:", error);
         return res.status(500).json({
             statusCode: 500,
             status: "error",
