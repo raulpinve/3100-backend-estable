@@ -34,13 +34,15 @@ const obtenerItems = async (req, res, next) => {
         const pagina = parseInt(req.query.pagina) || 1;
         const limite = parseInt(req.query.limite) || 20;
         const offset = (pagina - 1) * limite;
+        const {criterioId} = req.params
 
         const itemsQuery = await pool.query(`
             SELECT *
             FROM items_evaluacion
+            WHERE criterio_id = $1
             ORDER BY id ASC
-            LIMIT $1 OFFSET $2
-        `, [limite, offset]);
+            LIMIT $2 OFFSET $3
+        `, [criterioId, limite, offset]);
 
         const totalQuery = await pool.query(`SELECT COUNT(*) FROM items_evaluacion`);
         const totalRegistros = parseInt(totalQuery.rows[0].count);

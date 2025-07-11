@@ -52,7 +52,6 @@ const crearAuditoria = async (req, res, next) => {
     try {
         const { criteriosEvaluacion, empresaId, fechaAuditoria, estado } = req.body;
         const auditor = req.usuario.id || req.usuario._id;
-
         const criteriosEvaluacionUnicos = [...new Set(criteriosEvaluacion.map(id => id.toString()))];
 
         await client.query('BEGIN');
@@ -65,7 +64,6 @@ const crearAuditoria = async (req, res, next) => {
         );
 
         const itemsEvaluacion = itemEvaluacionCriterioQuery.rows;
-
         // 2. Insertar auditoría
         const auditoriaQuery = await client.query(
             `INSERT INTO auditorias (empresa_id, fecha_auditoria, auditor_id, estado)
@@ -74,7 +72,7 @@ const crearAuditoria = async (req, res, next) => {
             [empresaId, fechaAuditoria, auditor, estado]
         );
         const auditoria = auditoriaQuery.rows[0];
-
+        
         // 3. Insertar resultados_criterios con estado "noAplica"
         for (const item of itemsEvaluacion) {
             await client.query(
@@ -108,12 +106,7 @@ const crearAuditoria = async (req, res, next) => {
         return res.status(201).json({
             statusCode: 201,
             status: "success",
-            data: {
-                id: auditoriaInformacion.id,
-                fechaAuditoria: auditoriaInformacion.fecha_auditoria,
-                estado: auditoriaInformacion.estado, 
-                empresaNombre: auditoriaInformacion.empresa_nombre
-            }
+            data: snakeToCamel(auditoriaInformacion)
         });
 
     } catch (error) {
@@ -164,6 +157,7 @@ const obtenerAuditoria = async (req, res, next) => {
     }
 };
 
+// controllers/auditorias.js
 const obtenerAuditoriasPorEmpresa = async (req, res, next) => {
     try {
         const empresaId = req.params.empresaId;
@@ -171,7 +165,7 @@ const obtenerAuditoriasPorEmpresa = async (req, res, next) => {
         const limite = parseInt(req.query.limite) || 10;
         const offset = (pagina - 1) * limite;
 
-        // 1. Auditorías por empresa con nombre de empresa
+        // 1. Auditorías por empresa
         const auditoriasQuery = await pool.query(`
             SELECT a.*, e.nombre AS empresa_nombre
             FROM auditorias a
@@ -181,15 +175,40 @@ const obtenerAuditoriasPorEmpresa = async (req, res, next) => {
             LIMIT $2 OFFSET $3
         `, [empresaId, limite, offset]);
 
+        const auditorias = auditoriasQuery.rows.map(snakeToCamel);
+
         // 2. Total registros
         const totalQuery = await pool.query(`
             SELECT COUNT(*) FROM auditorias WHERE empresa_id = $1
         `, [empresaId]);
-
         const totalRegistros = parseInt(totalQuery.rows[0].count);
         const totalPaginas = Math.ceil(totalRegistros / limite);
 
-        // 3. Formato con paginación como usas
+        // 3. Obtener solo los IDs de criterios asociados
+        const auditoriaIds = auditorias.map(a => a.id);
+        if (auditoriaIds.length > 0) {
+            const criteriosQuery = await pool.query(`
+                SELECT auditoria_id, criterio_evaluacion_id
+                FROM auditoria_criterio
+                WHERE auditoria_id = ANY($1)
+            `, [auditoriaIds]);
+
+            // Agrupar por auditoría
+            const criteriosPorAuditoria = {};
+            criteriosQuery.rows.forEach(({ auditoria_id, criterio_evaluacion_id }) => {
+                if (!criteriosPorAuditoria[auditoria_id]) {
+                    criteriosPorAuditoria[auditoria_id] = [];
+                }
+                criteriosPorAuditoria[auditoria_id].push(criterio_evaluacion_id);
+            });
+
+            // Agregar al objeto auditoría
+            auditorias.forEach(a => {
+                a.criteriosEvaluacion = criteriosPorAuditoria[a.id] || [];
+            });
+        }
+
+        // 4. Respuesta
         return res.status(200).json({
             statusCode: 200,
             status: "success",
@@ -197,12 +216,12 @@ const obtenerAuditoriasPorEmpresa = async (req, res, next) => {
                 paginaActual: pagina,
                 totalPaginas
             },
-            data: auditoriasQuery.rows.map(snakeToCamel)
+            data: auditorias
         });
     } catch (error) {
         next(error);
     }
-}
+};
 
 
 const obtenerCriteriosDeAuditoria = async (req, res, next) => {

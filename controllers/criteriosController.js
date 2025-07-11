@@ -3,7 +3,7 @@ const { pool } = require("../initDB");
 const { snakeToCamel } = require("../utils/utils");
 
 // Crear criterio
-const crearCriterio = async (req, res, next) => {
+exports.crearCriterio = async (req, res, next) => {
     const { nombre, tipo, grupoId } = req.body;
 
     try {
@@ -31,7 +31,7 @@ const crearCriterio = async (req, res, next) => {
 };
 
 // Obtener todos los criterios
-const obtenerCriterios = async (req, res, next) => {
+exports.obtenerCriterios = async (req, res, next) => {
     try {
         const grupoId = req.params.grupoId;
         const pagina = parseInt(req.query.pagina) || 1;
@@ -74,8 +74,28 @@ const obtenerCriterios = async (req, res, next) => {
     }
 };
 
+// Obtener todos los criterios
+exports.obtenerTodosLosCriterios = async (req, res, next) => {
+    try {
+        const criteriosQuery = await pool.query(`
+            SELECT c.*, g.id as grupo_id, g.nombre AS grupo_nombre
+            FROM criterios_evaluacion c
+            LEFT JOIN grupos_autoevaluacion g ON c.grupo_id = g.id
+            ORDER BY c.id ASC
+        `);
+
+        return res.status(200).json({
+            statusCode: 200,
+            status: "success",
+            data: criteriosQuery.rows.map(snakeToCamel)
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // Obtener un criterio por ID
-const obtenerCriterioPorId = async (req, res) => {
+exports.obtenerCriterioPorId = async (req, res, next) => {
     const { criterioId } = req.params;
     try {
         const { rows: rowsCriterios } = await pool.query(
@@ -104,7 +124,7 @@ const obtenerCriterioPorId = async (req, res) => {
 };
 
 // Actualizar criterio
-const actualizarCriterio = async (req, res, next) => {
+exports.actualizarCriterio = async (req, res, next) => {
     const { criterioId } = req.params;
     const { nombre, tipo } = req.body;
 
@@ -137,7 +157,7 @@ const actualizarCriterio = async (req, res, next) => {
 };
 
 // Eliminar criterio
-const eliminarCriterio = async (req, res) => {
+exports.eliminarCriterio = async (req, res, next) => {
     const { criterioId } = req.params;
 
     try {
@@ -158,12 +178,4 @@ const eliminarCriterio = async (req, res) => {
     } catch (error) {
         next(error)
     }
-};
-
-module.exports = {
-    crearCriterio,
-    obtenerCriterios,
-    obtenerCriterioPorId,
-    actualizarCriterio,
-    eliminarCriterio
 };

@@ -109,6 +109,29 @@ const obtenerEmpresas = async (req, res, next) => {
     }
 };
 
+const obtenerTodasLasEmpresas = async (req, res, next) => {
+    const { rol, owner } = req.usuario;
+    const ownerId = rol === "administrador" ? req.usuario.id : owner;
+
+    try {
+        const { rows: empresas } = await pool.query(`
+            SELECT id, nombre, owner, created_at
+            FROM empresas
+            WHERE owner = $1
+            ORDER BY created_at DESC NULLS LAST
+        `, [ownerId]);
+
+        return res.status(200).json({
+            statusCode: 200,
+            status: "success",
+            data: empresas.map(empresa => snakeToCamel(empresa))
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
 const actualizarEmpresa = async (req, res, next) => {
     try {
         const empresaId = req.params.empresaId;
@@ -168,6 +191,7 @@ module.exports = {
     obtenerEmpresa, 
     obtenerEmpresas,
     actualizarEmpresa, 
-    eliminarEmpresa
+    eliminarEmpresa, 
+    obtenerTodasLasEmpresas
 }
 

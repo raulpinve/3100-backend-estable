@@ -23,6 +23,9 @@ router.post("/",
     }, empresasController.crearEmpresa
 );
 
+// Obtener todas las empresas
+router.get("/todas", empresasController.obtenerTodasLasEmpresas)
+
 // Obtener empresa
 router.get("/:empresaId", 
     validarEmpresaId,
