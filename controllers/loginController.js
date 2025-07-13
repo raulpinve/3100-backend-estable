@@ -19,7 +19,7 @@ const validarToken = async (req, res, next) => {
             const decoded = jwt.verify(token, process.env.SECRET_KEY_JWT);
             
             const { rows } = await pool.query(`
-                SELECT id, primer_nombre, apellidos, username, email, email_verificado, rol, avatar, avatar_thumbnail
+                SELECT id, primer_nombre, apellidos, username, email, email_verificado, rol, avatar, avatar_thumbnail, owner
                 FROM usuarios
                 WHERE username = $1 
             `, [decoded.username]);
@@ -38,6 +38,7 @@ const validarToken = async (req, res, next) => {
                 email: usuario.email,
                 emailVerificado: usuario.email_verificado,
                 rol: usuario.rol,
+                owner: usuario.owner,
                 avatar: usuario.avatar ? generarTokenImagen("usuario", usuario.id) : null,
                 avatarThumbnail: usuario.avatar_thumbnail ? generarTokenImagen("usuario", usuario.id, true) : null
             };

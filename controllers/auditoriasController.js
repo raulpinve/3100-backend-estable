@@ -5,48 +5,43 @@ const { snakeToCamel, calcularPromedioCumplimiento, calcularPromedioPonderado } 
 const ExcelJS = require('exceljs');
 const path = require("path");
 const fs = require("fs");
+const { generarTokenFirma } = require("../utils/hash");
 
 const obtenerConsolidado = async (auditoriaId) => {
     const query = `
         WITH conteo AS (
-        SELECT
-            ie.criterio_id,
-            ce.nombre,
-            ce.tipo,
-            COUNT(*) FILTER (WHERE rie.resultado = 'cumple') AS cumple,
-            COUNT(*) FILTER (WHERE rie.resultado = 'noCumple') AS no_cumple,
-            COUNT(*) FILTER (WHERE rie.resultado = 'noAplica') AS no_aplica,
-            COUNT(*) FILTER (WHERE rie.resultado = 'cumpleParcial') AS cumple_parcial,
-            COUNT(*) AS total_criterios
-        FROM resultados_items_evaluacion rie
-        INNER JOIN items_evaluacion ie ON rie.item_id = ie.id
-        INNER JOIN criterios_evaluacion ce ON ie.criterio_id = ce.id
-        WHERE rie.auditoria_id = $1
-        GROUP BY ie.criterio_id, ce.nombre, ce.tipo
+            SELECT
+                ie.criterio_id,
+                ce.nombre,
+                ce.tipo,
+                COUNT(*) FILTER (WHERE rie.resultado = 'cumple') AS cumple,
+                COUNT(*) FILTER (WHERE rie.resultado = 'noCumple') AS no_cumple,
+                COUNT(*) FILTER (WHERE rie.resultado = 'noAplica') AS no_aplica,
+                COUNT(*) FILTER (WHERE rie.resultado = 'cumpleParcial') AS cumple_parcial,
+                COUNT(*) AS total_criterios
+            FROM resultados_items_evaluacion rie
+            INNER JOIN items_evaluacion ie ON rie.item_id = ie.id
+            INNER JOIN criterios_evaluacion ce ON ie.criterio_id = ce.id
+            WHERE rie.auditoria_id = $1
+            GROUP BY ie.criterio_id, ce.nombre, ce.tipo
         ),
         cumplimiento_calculado AS (
-        SELECT
-            *,
-            CASE
-            WHEN (total_criterios - no_aplica) > 0 THEN
-                ROUND( ((cumple + (cumple_parcial * 0.5)) / (total_criterios - no_aplica)) * 100, 2)
-            ELSE 0
-            END AS cumplimiento
-        FROM conteo
+            SELECT
+                *,
+                CASE
+                    WHEN (total_criterios - no_aplica) > 0 THEN
+                        ROUND(((cumple + (cumple_parcial * 0.5)) / (total_criterios - no_aplica)) * 100, 2)
+                    ELSE 0
+                END AS cumplimiento
+            FROM conteo
         )
-        SELECT
-        COALESCE(json_agg(c) FILTER (WHERE tipo = 'estandar'), '[]') AS estandares,
-        COALESCE(json_agg(c) FILTER (WHERE tipo = 'servicio'), '[]') AS servicios,
-        COALESCE(json_agg(c) FILTER (WHERE tipo = 'otros_criterios'), '[]') AS otros_criterios
-        FROM cumplimiento_calculado c;
-    `;
+        SELECT * FROM cumplimiento_calculado;`;
 
     const { rows } = await pool.query(query, [auditoriaId]);
-    return rows[0] || { estandares: [], servicios: [], otros_criterios: [] };
+    return rows.map(snakeToCamel);
 };
 
-
-const crearAuditoria = async (req, res, next) => {
+exports.crearAuditoria = async (req, res, next) => {
     const client = await pool.connect();
 
     try {
@@ -117,7 +112,7 @@ const crearAuditoria = async (req, res, next) => {
     }
 };
 
-const obtenerAuditoria = async (req, res, next) => {
+exports.obtenerAuditoria = async (req, res, next) => {
     try {
         const { auditoriaId } = req.params;
         const id = parseInt(auditoriaId);
@@ -157,8 +152,7 @@ const obtenerAuditoria = async (req, res, next) => {
     }
 };
 
-// controllers/auditorias.js
-const obtenerAuditoriasPorEmpresa = async (req, res, next) => {
+exports.obtenerAuditoriasPorEmpresa = async (req, res, next) => {
     try {
         const empresaId = req.params.empresaId;
         const pagina = parseInt(req.query.pagina) || 1;
@@ -223,8 +217,7 @@ const obtenerAuditoriasPorEmpresa = async (req, res, next) => {
     }
 };
 
-
-const obtenerCriteriosDeAuditoria = async (req, res, next) => {
+exports.obtenerCriteriosDeAuditoria = async (req, res, next) => {
     try {
         const auditoriaId = parseInt(req.params.auditoriaId);
 
@@ -249,7 +242,7 @@ const obtenerCriteriosDeAuditoria = async (req, res, next) => {
     }
 };
 
-const obtenerResultadosAuditoriaPorCriterio = async (req, res, next) => {
+exports.obtenerResultadosAuditoriaPorCriterio = async (req, res, next) => {
     try {
         const auditoriaId = parseInt(req.params.auditoriaId);
         const criterioId = req.params.criterioId;
@@ -277,7 +270,7 @@ const obtenerResultadosAuditoriaPorCriterio = async (req, res, next) => {
     }
 };
 
-const agregarCriteriosAuditoria = async (req, res, next) => {
+exports.agregarCriteriosAuditoria = async (req, res, next) => {
     const client = await pool.connect();
 
     try {
@@ -319,7 +312,7 @@ const agregarCriteriosAuditoria = async (req, res, next) => {
 
         // 4. Obtener todos los items relacionados con esos criterios
         const itemsQuery = await client.query(
-            `SELECT id FROM items_evaluacion
+            `SELECT id, criterio_id FROM items_evaluacion
             WHERE criterio_id = ANY($1::uuid[])`,
             [criteriosNuevos]
         );
@@ -328,9 +321,9 @@ const agregarCriteriosAuditoria = async (req, res, next) => {
         // 5. Insertar resultados "noAplica" para cada item
         for (const item of items) {
             await client.query(
-                `INSERT INTO resultados_items_evaluacion (auditoria_id, item_id, resultado)
-                VALUES ($1, $2, 'noAplica')`,
-                [auditoriaId, item.id]
+                `INSERT INTO resultados_items_evaluacion (auditoria_id, item_id, criterio_id, resultado)
+                VALUES ($1, $2, $3, 'noAplica')`,
+                [auditoriaId, item.id, item.criterio_id]
             );
         }
 
@@ -350,7 +343,7 @@ const agregarCriteriosAuditoria = async (req, res, next) => {
     }
 };
 
-const eliminarCriteriosAuditoria = async (req, res, next) => {
+exports.eliminarCriteriosAuditoria = async (req, res, next) => {
     const client = await pool.connect();
 
     try {
@@ -418,7 +411,7 @@ const eliminarCriteriosAuditoria = async (req, res, next) => {
     }
 }
 
-const descargarConsolidado = async (req, res, next) => {
+exports.descargarConsolidado = async (req, res, next) => {
     try {
         const { auditoriaId } = req.params
 
@@ -734,7 +727,6 @@ const descargarConsolidado = async (req, res, next) => {
             const resultadosOrdenados = ordenarItemsResultado(resultadoFiltrado)
 
             resultadosOrdenados.forEach(resultado => {
-                console.log(resultado)
                 hojaServicio.addRow([
                     '',
                     resultado.criterio.item,
@@ -826,7 +818,7 @@ const descargarConsolidado = async (req, res, next) => {
     }
 }
 
-const obtenerConsolidadoAuditoria = async (req, res, next) => {
+exports.obtenerConsolidadoAuditoria = async (req, res, next) => {
     try {
         const {auditoriaId} = req.params
         const resultadoFinal = await obtenerConsolidado(auditoriaId)
@@ -842,7 +834,7 @@ const obtenerConsolidadoAuditoria = async (req, res, next) => {
     }
 }
 
-const actualizarAuditoria = async (req, res, next) => {
+exports.actualizarAuditoria = async (req, res, next) => {
     const client = await pool.connect();
 
     try {
@@ -878,7 +870,7 @@ const actualizarAuditoria = async (req, res, next) => {
 }
 
 // Eliminar auditoría
-const eliminarAuditoria = async (req, res, next) => {
+exports.eliminarAuditoria = async (req, res, next) => {
     const client = await pool.connect();
 
     try {
@@ -906,92 +898,60 @@ const eliminarAuditoria = async (req, res, next) => {
 };
 
 /* Firmas */
-
-// Agregar firma
-const agregarFirma = async (req, res, next) => {
+// Agregar firma de usuario registrado
+exports.agregarFirmaUsuarioRegistrado = async (req, res, next) => {
     const client = await pool.connect();
     try {
-        const { nombresCompletos, rol, usuario: usuarioId } = req.body;
+        const { usuarioId } = req.body;
         const { auditoriaId } = req.params;
 
         await client.query("BEGIN");
 
-        let firma;
-
-        if (usuarioId) {
-            // Verificar que el usuario exista
-            const { rows: usuarios } = await client.query(
-                "SELECT * FROM usuarios WHERE id = $1",
-                [usuarioId]
-            );
-            if (usuarios.length === 0) {
-                throwNotFoundError("El usuario seleccionado no existe.");
-            }
-
-            // Verificar que el usuario tenga firma
-            const { rows: firmas } = await client.query(
-                "SELECT * FROM firmas WHERE usuario_id = $1",
-                [usuarioId]
-            );
-            if (firmas.length === 0) {
-                throwNotFoundError("El usuario no tiene una firma registrada");
-            }
-
-            firma = firmas[0];
-
-            // Insertar relación en auditoria_firma
-            await client.query(
-                "INSERT INTO auditoria_firma (auditoria_id, firma_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-                [auditoriaId, firma.id]
-            );
-        } else {
-            const file = req.files["archivo"] && req.files["archivo"][0];
-            if (!file) {
-                throwBadRequestError("archivo", "No se ha subido ningún archivo.");
-            }
-            if (!validateMimeTypeFile(["image/png", "image/jpeg", "image/jpg"], file)) {
-                throwBadRequestError("file", "Solo se permiten la carga de imágenes.");
-            }
-            if (!validateSizeFile (file, 10)) {
-                throwBadRequestError("file", "El archivo excede el tamaño máximo permitido (10MB)");
-            }
-
-            const newFilename = file.newFilename;
-
-            await createFolder("./firmas");
-            const newPath = `./firmas/${newFilename}`;
-            await uploadFile(file.filepath, newPath);
-
-            const { rows: nuevaFirma } = await client.query(
-                `INSERT INTO firmas (nombres_completos, rol, archivo)
-                 VALUES ($1, $2, $3) RETURNING *`,
-                [nombresCompletos, rol, newFilename]
-            );
-            firma = nuevaFirma[0];
-
-            // Insertar relación en auditoria_firma
-            await client.query(
-                "INSERT INTO auditoria_firma (auditoria_id, firma_id) VALUES ($1, $2)",
-                [auditoriaId, firma.id]
-            );
+        // Verificar que el usuario exista
+        const { rows: usuarios } = await client.query(
+            "SELECT 1 FROM usuarios WHERE id = $1",
+            [usuarioId]
+        );
+        if (usuarios.length === 0) {
+            throwNotFoundError("El usuario seleccionado no existe.");
         }
+
+        // Verificar que el usuario tenga firma
+        const { rows: firmas } = await client.query(
+            "SELECT * FROM firmas WHERE usuario_id = $1",
+            [usuarioId]
+        );
+        if (firmas.length === 0) {
+            throwNotFoundError("El usuario no tiene una firma registrada.");
+        }
+
+        const { id: firmaId, archivo } = firmas[0];
+
+        // Insertar relación en auditoria_firma
+        await client.query(
+            `INSERT INTO auditoria_firma (auditoria_id, firma_id)
+             VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [auditoriaId, firmaId]
+        );
 
         await client.query("COMMIT");
 
-        let rutaFirma = "/images/image-default.png";
-        const rutaArchivoAbsoluto = path.join(__dirname, `../firmas/${firma.archivo}`);
-        if (checkFileExists(rutaArchivoAbsoluto)) {
-            rutaFirma = `/firmas-archivos/${firma.archivo}`;
+        // Verificar si el archivo existe
+        const filePath = path.join(__dirname, `../uploads/firmas/${archivo}`);
+        let rutaFirma = '/images/image-default.png';
+
+        if (checkFileExists(filePath)) {
+            rutaFirma = generarTokenFirma(archivo); 
         }
 
         return res.status(201).json({
             statusCode: 201,
             status: "success",
-            message: "Firma creada existosamente",
-            data: [{
-                ...firma,
+            message: "Firma asociada exitosamente.",
+            data: {
+                ...snakeToCamel(firmas[0]),
                 rutaFirma
-            }]
+            }
         });
     } catch (error) {
         await client.query("ROLLBACK");
@@ -1001,8 +961,77 @@ const agregarFirma = async (req, res, next) => {
     }
 };
 
+// Agregar firma
+exports.agregarFirmaUsuarioSinRegistrar = async (req, res, next) => {
+    const client = await pool.connect();
+    try {
+        const { nombresCompletos, rol } = req.body;
+        const { auditoriaId } = req.params;
+
+        await client.query("BEGIN");
+
+        const file = req.files?.archivo?.[0];
+        if (!file) {
+            throwBadRequestError("archivo", "No se ha subido ningún archivo.");
+        }
+        if (!validateMimeTypeFile(["image/png", "image/jpeg", "image/jpg"], file)) {
+            throwBadRequestError("file", "Solo se permite la carga de imágenes.");
+        }
+        if (!validateSizeFile(file, 10)) {
+            throwBadRequestError("file", "El archivo excede el tamaño máximo permitido (10 MB).");
+        }
+
+        const newFilename = file.newFilename;
+
+        // Carpeta general: ./uploads/firmas  (mantén la misma convención que los otros controladores)
+        const firmaDir = path.join(__dirname, `../uploads/firmas`);
+        await createFolder(firmaDir);
+
+        const fullPath = path.join(firmaDir, newFilename);
+        await uploadFile(file.filepath, fullPath);
+
+        const insertFirma = `
+            INSERT INTO firmas (nombres_completos, rol, archivo)
+            VALUES ($1, $2, $3)
+            RETURNING *
+        `;
+        const { rows } = await client.query(insertFirma, [nombresCompletos, rol, newFilename]);
+        const { id: firmaId, archivo } = rows[0];
+
+        await client.query(
+            "INSERT INTO auditoria_firma (auditoria_id, firma_id) VALUES ($1, $2)",
+            [auditoriaId, firmaId]
+        );
+
+        await client.query("COMMIT");
+
+        const filePath = path.join(__dirname, `../uploads/firmas/${archivo}`);
+        let rutaFirma = "/images/image-default.png";
+
+        if (checkFileExists(filePath)) {
+            rutaFirma = generarTokenFirma(archivo); 
+        }
+
+        return res.status(201).json({
+            statusCode: 201,
+            status: "success",
+            message: "Firma creada correctamente.",
+            data: {
+                ...snakeToCamel(rows[0]),
+                rutaFirma
+            }
+        });
+    } catch (error) {
+        await client.query("ROLLBACK");
+        next(error);
+    } finally {
+        client.release();
+    }
+};
+
+
 // Obtener firmas
-const obtenerFirmas = async (req, res, next) => {
+exports.obtenerFirmas = async (req, res, next) => {
     try {
         const { auditoriaId } = req.params;
 
@@ -1014,13 +1043,13 @@ const obtenerFirmas = async (req, res, next) => {
             WHERE af.auditoria_id = $1
         `, [auditoriaId]);
 
-        // Agregar ruta del archivo
+        // Agregar ruta del archivo con token
         const firmasActualizadas = firmas.map(firma => {
             let rutaFirma = "/images/image-default.png";
-            const archivoPath = path.join(__dirname, `../firmas/${firma.archivo}`);
+            const archivoPath = path.join(__dirname, `../uploads/firmas/${firma.archivo}`);
 
             if (checkFileExists(archivoPath)) {
-                rutaFirma = `/firmas-archivos/${firma.archivo}`;
+                rutaFirma = generarTokenFirma(firma.archivo);
             }
 
             return {
@@ -1032,14 +1061,14 @@ const obtenerFirmas = async (req, res, next) => {
         return res.status(200).json({
             statusCode: 200,
             status: "success",
-            data: firmasActualizadas
+            data: firmasActualizadas.map(snakeToCamel)
         });
     } catch (error) {
         next(error);
     }
 };
 
-const quitarFirma = async (req, res, next) => {
+exports.quitarFirma = async (req, res, next) => {
     const client = await pool.connect();
     try {
         const { firmaId, auditoriaId } = req.params;
@@ -1088,21 +1117,3 @@ const quitarFirma = async (req, res, next) => {
         client.release();
     }
 };
-
-module.exports = {
-    crearAuditoria,
-    obtenerAuditoria,
-    obtenerAuditoriasPorEmpresa,
-    obtenerCriteriosDeAuditoria, 
-    obtenerResultadosAuditoriaPorCriterio, 
-    agregarCriteriosAuditoria,
-    eliminarCriteriosAuditoria,
-    descargarConsolidado, 
-    obtenerConsolidadoAuditoria,
-    actualizarAuditoria,
-    eliminarAuditoria,
-    // Firmas
-    agregarFirma,
-    obtenerFirmas,
-    quitarFirma
-}

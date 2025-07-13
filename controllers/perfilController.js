@@ -301,7 +301,6 @@ const eliminarAvatar = async (req, res, next) => {
             `SELECT avatar, avatar_thumbnail FROM usuarios WHERE id = $1`,
              [usuarioId ]
         );
-        console.log(resultado)
         const { avatar, avatar_thumbnail: thumbnail } = resultado.rows[0] || {};
 
         if (!avatar && !thumbnail) {

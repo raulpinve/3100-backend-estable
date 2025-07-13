@@ -9,14 +9,23 @@ const { validarCriterioId } = require("../validators/criteriosValidators");
 const { validarEmpresaId } = require("../validators/empresaValidators");
 const { validarCrearFirma, validarFirmaId } = require("../validators/firmaValidators");
 
-// Agregar firma
-router.post("/:auditoriaId/firmas", 
+// Agregar firma usuario registrado
+router.post("/:auditoriaId/firmas/usuario-registrado", 
+    validarAuditoriaId, 
+    obtenerEmpresaAuditorias,
+    verificarPermisos("crear"),
+    validarCrearFirma, 
+    auditoriasController.agregarFirmaUsuarioRegistrado
+)
+
+// Agregar firma usuario sin registrar
+router.post("/:auditoriaId/firmas/usuario-sin-registro", 
     validarAuditoriaId, 
     obtenerEmpresaAuditorias,
     verificarPermisos("crear"),
     parseForm(), 
     validarCrearFirma, 
-    auditoriasController.agregarFirma
+    auditoriasController.agregarFirmaUsuarioSinRegistrar
 )
 
 // Obtener firmas 
