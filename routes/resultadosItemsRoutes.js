@@ -18,7 +18,7 @@ router.get('/:auditoriaId/:criterioId',
 );
 
 // Actualizar resultado
-router.put('/:resultadoItemId', 
+router.put('/:resultadoItemId/resultado', 
     obtenerEmpresaResultadoItem,
     verificarPermisos("editar"),
     validarActualizarResultado,
@@ -26,7 +26,7 @@ router.put('/:resultadoItemId',
 );
 
 // Actualizar observaciones
-router.put('/:resultadoItemId',
+router.put('/:resultadoItemId/observacion',
     obtenerEmpresaResultadoItem,
     verificarPermisos("editar"),
     validarActualizarObservaciones,

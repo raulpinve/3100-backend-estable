@@ -7,7 +7,7 @@ const { validarUUID } = require("../utils/utils");
 const regexItem = /^\d+(\.\d+)*$/;
 const arrayEstandar = [
     "talentoHumano", "infraestructura", "dotacion", "medicamentos",
-    "procesosPrioritarios", "historiaClinica", "interdependencia", "noAplica"
+    "procesosPrioritarios", "historiaClinica", "interdependencia", "noAplica", "noEvaluable"
 ];
 
 const validarItem = () => [
@@ -19,20 +19,25 @@ const validarItem = () => [
         .isIn(arrayEstandar)
         .withMessage('Debe seleccionar un estandar correcto.'),
 
-    body("titulo")
+    body("esEvaluable")
         .isBoolean()
-        .withMessage('El titulo debe ser de tipo booleano'),
+        .withMessage('esEvaluable debe ser de tipo booleano'),
+
+    body("ocultarItem")
+        .isBoolean()
+        .withMessage('ocultarItem debe ser de tipo booleano'),
+    
     body("highlightColor")
         .custom((value) => {
             if (value === null || value === "") return true;
             return ["yellow", "red", "gray", "blue", "green"].includes(value);
         })
         .withMessage("highlightColor debe ser un color válido, vacío o null.")
-
 ];
 
 // Crear item
 const validarCrearItem = [
+    ...validarItem(),
     body("criterioId")
         .custom(async value => {
             const criterio = await pool.query("SELECT id FROM criterios_evaluacion WHERE id = $1", [value]);
@@ -55,8 +60,6 @@ const validarCrearItem = [
             }
             return true;
         }),
-
-    ...validarItem(),
     manejarErroresDeValidacion
 ];
 
@@ -72,7 +75,8 @@ const validarActualizarItem = [
                 const actual = await pool.query("SELECT * FROM items_evaluacion WHERE id = $1", [itemId]);
                 if (actual.rowCount === 0) throw new Error("Item no encontrado");
 
-                const { criterioId, item } = actual.rows[0];
+                const { criterio_id: criterioId, item } = actual.rows[0];
+
                 if (item !== value) {
                     const existe = await pool.query(
                         `SELECT id FROM items_evaluacion WHERE item = $1 AND criterio_id = $2 AND id <> $3`,

@@ -9,7 +9,7 @@ const obtenerEmpresaResultadoItem = async (req, res, next)=> {
     }
     // Obtener la información de la auditoria
     const {rows: rowsResultadoItem} = await pool.query(
-        `SELECT auditorias.empresa_id FROM auditorias as aud
+        `SELECT aud.empresa_id FROM auditorias as aud
             INNER JOIN resultados_items_evaluacion as rie
             ON aud.id = rie.auditoria_id
             WHERE rie.id=$1`, [resultadoItemId]

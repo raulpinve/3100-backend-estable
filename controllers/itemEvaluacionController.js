@@ -3,12 +3,12 @@ const { snakeToCamel, ordenarItems } = require("../utils/utils");
 
 // Crear
 const crearItem = async (req, res, next) => {
-    const { item, descripcion, estandar, criterioId, titulo, highlightColor } = req.body;
+    const { item, descripcion, estandar, criterioId, esEvaluable, ocultarItem, highlightColor } = req.body;
     try {
         const result = await pool.query(
-            `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id, es_titulo, highlight_color)
-                VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-            [item, descripcion, estandar, criterioId, titulo, highlightColor]
+            `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id, es_evaluable, ocultar_item, highlight_color)
+                VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [item, descripcion, estandar, criterioId, esEvaluable, ocultarItem, highlightColor]
         );
 
         const itemResult = result.rows[0];
@@ -16,12 +16,7 @@ const crearItem = async (req, res, next) => {
             statusCode: 201,
             status: "success",
             message: "Criterio creado correctamente",
-            data: {
-                id: itemResult.id,
-                descripcion: itemResult.descripcion,
-                estandar: itemResult.estandar,
-                criterioId: itemResult.criterioId,
-            }
+            data: snakeToCamel(itemResult)
         });
     } catch (err) {
         next(err)
@@ -86,23 +81,39 @@ const obtenerItemPorId = async (req, res, next) => {
 // Actualizar
 const actualizarItem = async (req, res, next) => {
     const { itemId } = req.params;
-    const { item, descripcion, estandar, titulo, highlightColor } = req.body;
+    const { item, descripcion, estandar, esEvaluable, ocultarItem, highlightColor } = req.body;
+    const client = await pool.connect();
+
     try {
-        const result = await pool.query(
+        await client.query('BEGIN');
+
+        const result = await client.query(
             `UPDATE items_evaluacion
                 SET item = $1,
                     descripcion = $2,
                     estandar = $3,
-                    es_titulo = $4,
-                    highlight_color = $5,
+                    es_evaluable = $4,
+                    ocultar_item = $5,
+                    highlight_color = $6,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $6
+                WHERE id = $7
                 RETURNING *`,
-            [item, descripcion, estandar, titulo, highlightColor, itemId]
+            [item, descripcion, estandar, esEvaluable, ocultarItem, highlightColor, itemId]
         );
-        if (result.rows.length === 0) throwNotFoundError("El item no existe.");
 
+        if (result.rows.length === 0) throwNotFoundError("El item no existe.");
         const itemResult = result.rows[0];
+
+        // Al actualizar los ítems de auditoría:
+        // si el tipo cambia a "título", el resultado pasa a "noAplica";
+        // en caso contrario, se mantiene como "noEvaluable".
+        const nuevoResultado = esEvaluable ? "noAplica": "noEvaluable";
+
+        await client.query(`UPDATE resultados_items_evaluacion SET resultado = $1`, 
+            [nuevoResultado]
+        )
+
+        await client.query('COMMIT'); 
 
         return res.status(200).json({
             statusCode: 200,
@@ -110,8 +121,12 @@ const actualizarItem = async (req, res, next) => {
             message: "Item actualizado con éxito.",
             data: snakeToCamel(itemResult)
         });
+
     } catch (err) {
+        await client.query('ROLLBACK'); 
         next(err);
+    } finally {
+        client.release();
     }
 };
 

@@ -65,7 +65,7 @@ const signUp = async (req, res, next) => {
         // Insertar el usuario en la BD
         const userQuery = await pool.query(
             `INSERT INTO usuarios (primer_nombre, apellidos, email, username, password, rol)
-             VALUES ($1, $2, $3, $4, $5, 'superadministrador') 
+             VALUES ($1, $2, $3, $4, $5, 'administrador') 
              RETURNING id, primer_nombre, apellidos, email, username, email_verificado, rol, avatar, avatar_thumbnail`,
             [primerNombre, apellidos, email, username, hashedPassword]
         );

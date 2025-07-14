@@ -1,13 +1,13 @@
 const { throwNotFoundError, throwBadRequestError } = require("../errors/throwHTTPErrors");
 const { pool } = require("../initDB");
-const { snakeToCamel } = require("../utils/utils");
+const { snakeToCamel, ordenarItems } = require("../utils/utils");
 
 const obtenerResultadosItems = async (req, res, next) => {
 	const { criterioId, auditoriaId } = req.params;
 
 	try {
 		const result = await pool.query(
-			`SELECT rie.id, ie.item, ie.descripcion, ie.estandar, ie.ocultar_item as ocultar_number_item, ie.es_titulo,
+			`SELECT rie.id, ie.item, ie.descripcion, ie.estandar, ie.ocultar_item as ocultar_number_item, ie.es_titulo, ie.highlight_color,
 				rie.resultado, rie.observaciones
 				FROM resultados_items_evaluacion as rie 
 					INNER JOIN items_evaluacion as ie
@@ -15,10 +15,12 @@ const obtenerResultadosItems = async (req, res, next) => {
 				WHERE rie.criterio_id = $1 AND rie.auditoria_id = $2`,
 			[criterioId, auditoriaId]
 		);
+		const items = ordenarItems(result.rows);
+		
 		return res.status(201).json({
 			statusCode: 201,
 			status: "success",
-			data: result.rows.map(snakeToCamel)
+			data: items.map(snakeToCamel)
 		});
 	} catch (err) {
 		next(err);
@@ -44,7 +46,7 @@ const actualizarResultado = async (req, res, next) => {
 		}
 
 		if (verificacion.rows[0].es_titulo) {
-			throwBadRequestError(undefined, "No se puede editar un resultado para un ítem que es solo un título.");
+			throwBadRequestError(undefined, "No se puede editar un resultado para un ítem que es solo un título. ");
 		}
 
 		// 2. Si no es título, entonces actualizar

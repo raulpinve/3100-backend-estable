@@ -18,6 +18,7 @@ const obtenerConsolidado = async (auditoriaId) => {
                 COUNT(*) FILTER (WHERE rie.resultado = 'noCumple') AS no_cumple,
                 COUNT(*) FILTER (WHERE rie.resultado = 'noAplica') AS no_aplica,
                 COUNT(*) FILTER (WHERE rie.resultado = 'cumpleParcial') AS cumple_parcial,
+                COUNT(*) FILTER (WHERE rie.resultado = 'noEvaluable') AS no_evaluable,
                 COUNT(*) AS total_criterios
             FROM resultados_items_evaluacion rie
             INNER JOIN items_evaluacion ie ON rie.item_id = ie.id
@@ -29,14 +30,13 @@ const obtenerConsolidado = async (auditoriaId) => {
             SELECT
                 *,
                 CASE
-                    WHEN (total_criterios - no_aplica) > 0 THEN
-                        ROUND(((cumple + (cumple_parcial * 0.5)) / (total_criterios - no_aplica)) * 100, 2)
+                    WHEN (total_criterios - no_aplica - no_evaluable) > 0 THEN
+                        ROUND(((cumple + (cumple_parcial * 0.5)) / (total_criterios - no_aplica - no_evaluable)) * 100, 2)
                     ELSE 0
                 END AS cumplimiento
             FROM conteo
         )
-        SELECT * FROM cumplimiento_calculado;`;
-
+        SELECT * FROM cumplimiento_calculado`;
     const { rows } = await pool.query(query, [auditoriaId]);
     return rows.map(snakeToCamel);
 };
@@ -53,7 +53,7 @@ exports.crearAuditoria = async (req, res, next) => {
         
         // 1. Obtener criterios relacionados con los servicios
         const itemEvaluacionCriterioQuery = await client.query(
-            `SELECT id, criterio_id FROM items_evaluacion
+            `SELECT id, criterio_id, es_evaluable FROM items_evaluacion
             WHERE criterio_id = ANY($1::uuid[])`,
             [criteriosEvaluacionUnicos]
         );
@@ -68,12 +68,13 @@ exports.crearAuditoria = async (req, res, next) => {
         );
         const auditoria = auditoriaQuery.rows[0];
         
-        // 3. Insertar resultados_criterios con estado "noAplica"
+        // 3. Insertar resultados_criterios con estado "noAplica" o "noEvaluable" de acuerdo al tipo de item
         for (const item of itemsEvaluacion) {
+            const resultado = item.es_evaluable ? "noAplica" : "noEvaluable";
             await client.query(
                 `INSERT INTO resultados_items_evaluacion (auditoria_id, item_id, criterio_id, resultado)
                 VALUES ($1, $2, $3, $4)`,
-                [auditoria.id, item.id, item.criterio_id, 'noAplica']
+                [auditoria.id, item.id, item.criterio_id, resultado]
             );
         }
 
@@ -312,7 +313,7 @@ exports.agregarCriteriosAuditoria = async (req, res, next) => {
 
         // 4. Obtener todos los items relacionados con esos criterios
         const itemsQuery = await client.query(
-            `SELECT id, criterio_id FROM items_evaluacion
+            `SELECT id, criterio_id, es_titulo FROM items_evaluacion
             WHERE criterio_id = ANY($1::uuid[])`,
             [criteriosNuevos]
         );
@@ -320,10 +321,11 @@ exports.agregarCriteriosAuditoria = async (req, res, next) => {
 
         // 5. Insertar resultados "noAplica" para cada item
         for (const item of items) {
+            const resultado = item.es_evaluable ? "noAplica" : "noEvaluable";
             await client.query(
                 `INSERT INTO resultados_items_evaluacion (auditoria_id, item_id, criterio_id, resultado)
-                VALUES ($1, $2, $3, 'noAplica')`,
-                [auditoriaId, item.id, item.criterio_id]
+                VALUES ($1, $2, $3, $4)`,
+                [auditoriaId, item.id, item.criterio_id, resultado]
             );
         }
 

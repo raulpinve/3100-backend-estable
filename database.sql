@@ -72,10 +72,10 @@ CREATE TABLE items_evaluacion (
         'procesosPrioritarios',
         'historiaClinica',
         'interdependencia',
-        'noAplica'
+        'noAplica',
     )),
-    highlight_color TEXT DEFAULT NULL
-    es_titulo BOOLEAN DEFAULT false,
+    highlight_color TEXT DEFAULT NULL,
+    es_evaluable BOOLEAN DEFAULT true,
     ocultar_item BOOLEAN DEFAULT false,
     criterio_id UUID NOT NULL REFERENCES criterios_evaluacion(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -122,7 +122,7 @@ CREATE TABLE auditoria_firma (
 CREATE TABLE resultados_items_evaluacion (
     id SERIAL PRIMARY KEY,
     auditoria_id INTEGER NOT NULL REFERENCES auditorias(id) ON DELETE CASCADE,
-    resultado TEXT NOT NULL DEFAULT 'noAplica' CHECK (resultado IN ('cumple', 'noCumple', 'noAplica', 'cumpleParcial')),
+    resultado TEXT NOT NULL DEFAULT 'noAplica' CHECK (resultado IN ('cumple', 'noCumple', 'noAplica', 'noEvaluable', 'cumpleParcial')),
     observaciones TEXT,
     item_id UUID NOT NULL REFERENCES items_evaluacion(id) ON DELETE CASCADE,
     criterio_id UUID NOT NULL REFERENCES criterios_evaluacion(id) ON DELETE CASCADE,
