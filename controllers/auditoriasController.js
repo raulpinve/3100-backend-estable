@@ -19,7 +19,7 @@ const obtenerConsolidado = async (auditoriaId) => {
                 COUNT(*) FILTER (WHERE rie.resultado = 'noAplica') AS no_aplica,
                 COUNT(*) FILTER (WHERE rie.resultado = 'cumpleParcial') AS cumple_parcial,
                 COUNT(*) FILTER (WHERE rie.resultado = 'noEvaluable') AS no_evaluable,
-                COUNT(*) AS total_criterios
+                COUNT(*) FILTER (WHERE rie.resultado != 'noEvaluable') AS total_criterios
             FROM resultados_items_evaluacion rie
             INNER JOIN items_evaluacion ie ON rie.item_id = ie.id
             INNER JOIN criterios_evaluacion ce ON ie.criterio_id = ce.id
@@ -30,13 +30,15 @@ const obtenerConsolidado = async (auditoriaId) => {
             SELECT
                 *,
                 CASE
-                    WHEN (total_criterios - no_aplica - no_evaluable) > 0 THEN
-                        ROUND(((cumple + (cumple_parcial * 0.5)) / (total_criterios - no_aplica - no_evaluable)) * 100, 2)
+                    WHEN (total_criterios - no_aplica) > 0 THEN
+                        ROUND(((cumple + (cumple_parcial * 0.5)) / (total_criterios - no_aplica)) * 100, 2)
                     ELSE 0
                 END AS cumplimiento
             FROM conteo
         )
-        SELECT * FROM cumplimiento_calculado`;
+        SELECT * FROM cumplimiento_calculado
+    `;
+
     const { rows } = await pool.query(query, [auditoriaId]);
     return rows.map(snakeToCamel);
 };

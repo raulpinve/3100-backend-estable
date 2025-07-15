@@ -76,7 +76,7 @@ CREATE TABLE items_evaluacion (
     )),
     highlight_color TEXT DEFAULT NULL,
     es_evaluable BOOLEAN DEFAULT true,
-    ocultar_item BOOLEAN DEFAULT false,
+    mostrar_item BOOLEAN DEFAULT true,
     criterio_id UUID NOT NULL REFERENCES criterios_evaluacion(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

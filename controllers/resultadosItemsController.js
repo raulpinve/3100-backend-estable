@@ -7,7 +7,7 @@ const obtenerResultadosItems = async (req, res, next) => {
 
 	try {
 		const result = await pool.query(
-			`SELECT rie.id, ie.item, ie.descripcion, ie.estandar, ie.ocultar_item as ocultar_number_item, ie.es_titulo, ie.highlight_color,
+			`SELECT rie.id, ie.item, ie.descripcion, ie.estandar, ie.mostrar_item, ie.es_evaluable, ie.highlight_color,
 				rie.resultado, rie.observaciones
 				FROM resultados_items_evaluacion as rie 
 					INNER JOIN items_evaluacion as ie
@@ -34,7 +34,7 @@ const actualizarResultado = async (req, res, next) => {
 	try {
 		// 1. Verificar si el item asociado es un título
 		const verificacion = await pool.query(
-			`SELECT i.es_titulo
+			`SELECT i.es_evaluable
 			 FROM resultados_items_evaluacion rie
 			 JOIN items_evaluacion i ON rie.item_id = i.id
 			 WHERE rie.id = $1`,
@@ -45,8 +45,8 @@ const actualizarResultado = async (req, res, next) => {
 			throwNotFoundError("Ítem no encontrado.");
 		}
 
-		if (verificacion.rows[0].es_titulo) {
-			throwBadRequestError(undefined, "No se puede editar un resultado para un ítem que es solo un título. ");
+		if (!verificacion.rows[0].es_evaluable) {
+			throwBadRequestError(undefined, "No se puede editar un resultado para un ítem que no es evaluable ");
 		}
 
 		// 2. Si no es título, entonces actualizar
@@ -81,7 +81,7 @@ const actualizarObservaciones = async (req, res, next) => {
 	try {
 		// 1. Verificar si el item asociado es un título
 		const verificacion = await pool.query(
-			`SELECT i.es_titulo
+			`SELECT i.es_evaluable
 			 FROM resultados_items_evaluacion rie
 			 JOIN items_evaluacion i ON rie.item_id = i.id
 			 WHERE rie.id = $1`,
@@ -92,7 +92,7 @@ const actualizarObservaciones = async (req, res, next) => {
 			throwNotFoundError("Ítem no encontrado.");
 		}
 
-		if (verificacion.rows[0].es_titulo) {
+		if (!verificacion.rows[0].es_evaluable) {
 			throwBadRequestError(undefined, "No se puede editar las observaciones para un ítem que es solo un título.");
 		}
 

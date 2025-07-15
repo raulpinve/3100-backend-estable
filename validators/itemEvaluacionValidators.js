@@ -23,9 +23,9 @@ const validarItem = () => [
         .isBoolean()
         .withMessage('esEvaluable debe ser de tipo booleano'),
 
-    body("ocultarItem")
+    body("mostrarItem")
         .isBoolean()
-        .withMessage('ocultarItem debe ser de tipo booleano'),
+        .withMessage('mostrarItem debe ser de tipo booleano'),
     
     body("highlightColor")
         .custom((value) => {

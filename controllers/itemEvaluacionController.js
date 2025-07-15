@@ -3,12 +3,12 @@ const { snakeToCamel, ordenarItems } = require("../utils/utils");
 
 // Crear
 const crearItem = async (req, res, next) => {
-    const { item, descripcion, estandar, criterioId, esEvaluable, ocultarItem, highlightColor } = req.body;
+    const { item, descripcion, estandar, criterioId, esEvaluable, mostrarItem, highlightColor } = req.body;
     try {
         const result = await pool.query(
-            `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id, es_evaluable, ocultar_item, highlight_color)
+            `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id, es_evaluable, mostrar_item, highlight_color)
                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-            [item, descripcion, estandar, criterioId, esEvaluable, ocultarItem, highlightColor]
+            [item, descripcion, estandar, criterioId, esEvaluable, mostrarItem, highlightColor]
         );
 
         const itemResult = result.rows[0];
@@ -81,7 +81,7 @@ const obtenerItemPorId = async (req, res, next) => {
 // Actualizar
 const actualizarItem = async (req, res, next) => {
     const { itemId } = req.params;
-    const { item, descripcion, estandar, esEvaluable, ocultarItem, highlightColor } = req.body;
+    const { item, descripcion, estandar, esEvaluable, mostrarItem, highlightColor } = req.body;
     const client = await pool.connect();
 
     try {
@@ -93,12 +93,12 @@ const actualizarItem = async (req, res, next) => {
                     descripcion = $2,
                     estandar = $3,
                     es_evaluable = $4,
-                    ocultar_item = $5,
+                    mostrar_item = $5,
                     highlight_color = $6,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $7
                 RETURNING *`,
-            [item, descripcion, estandar, esEvaluable, ocultarItem, highlightColor, itemId]
+            [item, descripcion, estandar, esEvaluable, mostrarItem, highlightColor, itemId]
         );
 
         if (result.rows.length === 0) throwNotFoundError("El item no existe.");
@@ -109,10 +109,9 @@ const actualizarItem = async (req, res, next) => {
         // en caso contrario, se mantiene como "noEvaluable".
         const nuevoResultado = esEvaluable ? "noAplica": "noEvaluable";
 
-        await client.query(`UPDATE resultados_items_evaluacion SET resultado = $1`, 
-            [nuevoResultado]
+        await client.query(`UPDATE resultados_items_evaluacion SET resultado = $1 WHERE item_id = $2`, 
+            [nuevoResultado, itemId]
         )
-
         await client.query('COMMIT'); 
 
         return res.status(200).json({
