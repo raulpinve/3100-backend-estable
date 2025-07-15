@@ -7,14 +7,13 @@ const { validarUUID } = require("../utils/utils");
 const validarUsuarioId = async (req, res, next) => {
     try {
         const { usuarioId } = req.params;
-
         if (!validarUUID(usuarioId)) {
-            throwNotFoundError("Usuario no encontrado");
+            throwNotFoundError("El ID del usuario no es correcto.");
         }
 
         const { rows } = await pool.query(`SELECT id FROM usuarios WHERE id = $1`, [usuarioId]);
         if (rows.length === 0) {
-            throwNotFoundError("Usuario no encontrado");
+            throwNotFoundError("Usuario no encontrado.");
         }
         
         next();
