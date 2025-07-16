@@ -35,7 +35,7 @@ const validarActualizarGrupo = [
         .isLength({ max: 200 }).withMessage("El nombre no puede tener más de 200 caracteres.")
         .custom(async (value, { req }) => {
             const grupoExistente = await nombreExiste(value);
-            if (grupoExistente && grupoExistente.id.toString() !== req.params.id) {
+            if (grupoExistente && grupoExistente.id.toString() !== req.params.grupoId) {
                 throw new Error("El nombre ya se encuentra en uso");
             }
             return true;

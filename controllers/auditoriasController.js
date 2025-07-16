@@ -315,7 +315,7 @@ exports.agregarCriteriosAuditoria = async (req, res, next) => {
 
         // 4. Obtener todos los items relacionados con esos criterios
         const itemsQuery = await client.query(
-            `SELECT id, criterio_id, es_titulo FROM items_evaluacion
+            `SELECT id, criterio_id, es_evaluable FROM items_evaluacion
             WHERE criterio_id = ANY($1::uuid[])`,
             [criteriosNuevos]
         );

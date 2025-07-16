@@ -107,7 +107,7 @@ CREATE TABLE auditorias (
 -- 9. Relación auditoría <-> criterios
 CREATE TABLE auditoria_criterio (
     auditoria_id INTEGER REFERENCES auditorias(id) ON DELETE CASCADE,
-    criterio_evaluacion_id UUID REFERENCES criterios_evaluacion(id),
+    criterio_evaluacion_id UUID REFERENCES criterios_evaluacion(id) ON DELETE CASCADE,
     PRIMARY KEY (auditoria_id, criterio_evaluacion_id)
 );
 
