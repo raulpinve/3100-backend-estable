@@ -4,22 +4,51 @@ const { snakeToCamel, ordenarItems } = require("../utils/utils");
 // Crear
 const crearItem = async (req, res, next) => {
     const { item, descripcion, estandar, criterioId, esEvaluable, mostrarItem, highlightColor } = req.body;
+
+    const client = await pool.connect();
+
     try {
-        const result = await pool.query(
+        await client.query('BEGIN');
+
+        // Crear item de evaluación
+        const result = await client.query(
             `INSERT INTO items_evaluacion (item, descripcion, estandar, criterio_id, es_evaluable, mostrar_item, highlight_color)
-                VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
             [item, descripcion, estandar, criterioId, esEvaluable, mostrarItem, highlightColor]
         );
 
         const itemResult = result.rows[0];
+
+        // Obtener auditorías asociadas al criterio
+        const { rows: auditorias } = await client.query(
+            `SELECT * FROM auditoria_criterio WHERE criterio_evaluacion_id = $1`,
+            [criterioId]
+        );
+
+        // Insertar resultados iniciales para cada auditoría
+        for (const auditoria of auditorias) {
+            await client.query(
+                `INSERT INTO resultados_items_evaluacion 
+                 (auditoria_id, resultado, observaciones, item_id, criterio_id)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [auditoria.auditoria_id, 'noAplica', "", itemResult.id, criterioId]
+            );
+        }
+
+        await client.query('COMMIT');
+
         return res.status(201).json({
             statusCode: 201,
             status: "success",
             message: "Criterio creado correctamente",
             data: snakeToCamel(itemResult)
         });
+
     } catch (err) {
-        next(err)
+        await client.query('ROLLBACK');
+        next(err);
+    } finally {
+        client.release();
     }
 };
 
@@ -130,21 +159,42 @@ const actualizarItem = async (req, res, next) => {
 };
 
 // Eliminar
-const eliminarItem = async (req, res) => {
+const eliminarItem = async (req, res, next) => {
     const { itemId } = req.params;
+    const client = await pool.connect();
+
     try {
-        const result = await pool.query('DELETE FROM items_evaluacion WHERE id = $1 RETURNING *', [itemId]);
+        await client.query('BEGIN');
+
+        // Eliminar resultados relacionados
+        await client.query(
+            'DELETE FROM resultados_items_evaluacion WHERE item_id = $1',
+            [itemId]
+        );
+
+        // Eliminar el ítem de evaluación
+        const result = await client.query(
+            'DELETE FROM items_evaluacion WHERE id = $1 RETURNING *',
+            [itemId]
+        );
+
         if (result.rows.length === 0) throwNotFoundError("El item no existe.");
+
+        await client.query('COMMIT');
 
         return res.status(200).json({
             statusCode: 200,
             status: "success",
             message: "Item eliminado correctamente",
         });
+
     } catch (err) {
-        next(err)
+        await client.query('ROLLBACK');
+        next(err);
+    } finally {
+        client.release();
     }
-}
+};
 
 module.exports = {
     crearItem,
