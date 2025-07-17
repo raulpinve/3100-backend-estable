@@ -48,7 +48,7 @@ exports.crearAuditoria = async (req, res, next) => {
 
     try {
         const { criteriosEvaluacion, empresaId, fechaAuditoria, estado } = req.body;
-        const auditor = req.usuario.id || req.usuario._id;
+        const auditorId = req.usuario.id;
         const criteriosEvaluacionUnicos = [...new Set(criteriosEvaluacion.map(id => id.toString()))];
 
         await client.query('BEGIN');
@@ -63,10 +63,8 @@ exports.crearAuditoria = async (req, res, next) => {
         const itemsEvaluacion = itemEvaluacionCriterioQuery.rows;
         // 2. Insertar auditoría
         const auditoriaQuery = await client.query(
-            `INSERT INTO auditorias (empresa_id, fecha_auditoria, auditor_id, estado)
-                VALUES ($1, $2, $3, $4)
-                RETURNING *`,
-            [empresaId, fechaAuditoria, auditor, estado]
+            `INSERT INTO auditorias (empresa_id, fecha_auditoria, estado) VALUES ($1, $2, $3) RETURNING *`,
+            [empresaId, fechaAuditoria, estado]
         );
         const auditoria = auditoriaQuery.rows[0];
         
@@ -89,9 +87,14 @@ exports.crearAuditoria = async (req, res, next) => {
             );
         }
 
+        // 5. Insertar usuario en auditores_auditorias
+        await client.query(
+            `INSERT INTO auditores_auditoria (auditoria_id, auditor_id) 
+                VALUES ($1, $2)`, [auditoria.id, auditorId])
+
         await client.query('COMMIT');
 
-        // 4. Obtener auditoría con empresa (si deseas incluir datos de empresa)
+        // 6. Obtener auditoría con empresa (si deseas incluir datos de empresa)
         const auditoriaCompleta = await pool.query(`
             SELECT a.*, e.nombre AS empresa_nombre
             FROM auditorias a

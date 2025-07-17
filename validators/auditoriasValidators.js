@@ -20,7 +20,7 @@ const validarCrearAuditoria = [
 
     body("criteriosEvaluacion")
         .isArray({ min: 1 })
-        .withMessage("Debe proporcionar un array de IDs de criterios de evaluación válidos")
+        .withMessage("Debe seleccionar al menos un estándar o servicio.")
         .custom(async (criterios) => {
             const criteriosUnicos = [...new Set(criterios.map(id => id.toString()))];
             const result = await pool.query(

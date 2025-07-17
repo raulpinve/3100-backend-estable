@@ -72,7 +72,7 @@ CREATE TABLE items_evaluacion (
         'procesosPrioritarios',
         'historiaClinica',
         'interdependencia',
-        'noAplica',
+        'noAplica'
     )),
     highlight_color TEXT DEFAULT NULL,
     es_evaluable BOOLEAN DEFAULT true,
@@ -98,7 +98,6 @@ CREATE TABLE auditorias (
     id SERIAL PRIMARY KEY,
     empresa_id UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
     fecha_auditoria TIMESTAMP NOT NULL,
-    auditor_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     estado TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -128,4 +127,11 @@ CREATE TABLE resultados_items_evaluacion (
     criterio_id UUID NOT NULL REFERENCES criterios_evaluacion(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 12. Auditores
+CREATE TABLE auditores_auditoria (
+  auditoria_id INTEGER REFERENCES auditorias(id) ON DELETE CASCADE,
+  auditor_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+  PRIMARY KEY (auditoria_id, auditor_id)
 );
