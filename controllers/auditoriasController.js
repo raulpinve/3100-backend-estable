@@ -45,6 +45,15 @@ async function markdownHtmlToRichText(content) {
     return richText.length > 0 ? { richText } : content;
 }
 
+const colorMap = {
+  yellow: 'FFFFFF00', // amarillo
+  red:    'FFFF0000', // rojo
+  gray:   'FF9CA3AF', // gris Tailwind (gray-400)
+  blue:   'FF3B82F6', // azul Tailwind (blue-500)
+  green:  'FF10B981', // verde Tailwind (green-500)
+};
+
+
 
 const nombresLargosEstandares = {
     talentoHumano: "Talento Humano",
@@ -740,38 +749,39 @@ exports.descargarConsolidado = async (req, res, next) => {
 
         const criterios = rowsCriteriosAuditorias || [];
         for (const criterio of criterios) {
-            let rowOffsetServicio = 3
+            let rowOffsetServicio = 3;
             const hojaServicio = workbook.addWorksheet(criterio.nombre);
-            
-            // Estilos del título principal
+
+            // Título principal
             hojaServicio.mergeCells('B2:F2');
             hojaServicio.getCell('B2').value = criterio.nombre;
-            hojaServicio.getCell('B2').font = { bold: true, size: 14, color: { argb: 'FFFFFF' }};
+            hojaServicio.getCell('B2').font = { bold: true, size: 14, color: { argb: 'FFFFFF' } };
             hojaServicio.getCell('B2').alignment = { horizontal: 'center' };
-            hojaServicio.getCell('B2').fill = {
+            hojaServicio.getCell('B2').fill = hojaServicio.getCell('E2').fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: 'FF4B5563' },
             };
-            hojaServicio.getCell('E2').fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF4B5563' },
-            };
-            hojaServicio.columns = [{ width: 5 },  { width: 20 }, { width: 65 }, { width: 20 }, { width: 22 }, { width: 50 }];
+
+            hojaServicio.columns = [
+                { width: 5 }, { width: 20 }, { width: 65 },
+                { width: 20 }, { width: 22 }, { width: 50 }
+            ];
+
             hojaServicio.autoFilter = {
                 from: 'D3',
                 to: 'E3',
             };
-            // Estilos de las columnas de las columnas
-            hojaServicio.getColumn(2).alignment = { vertical: 'middle', horizontal: 'center' };  // Columna B (Ajuste de texto)
-            hojaServicio.getColumn(3).alignment = { vertical: 'middle', wrapText: true };  // Columna C
-            hojaServicio.getColumn(4).alignment = { vertical: 'middle', horizontal: 'center'};  // Columna D
-            hojaServicio.getColumn(5).alignment = { horizontal: 'center', vertical: 'middle' };  // Columna E (Ajuste de texto)
-            hojaServicio.getColumn(6).alignment = { wrapText: true, vertical: 'middle' };  // Columna E (Ajuste de texto)
 
-            // Estilos de la tabla de Servicios
-            hojaServicio.getRow(rowOffsetServicio).values = ['', 'Ítem','Criterio de evaluación', 'Estandar',  'Estado', 'Observaciones'];
+            // Estilos columnas
+            hojaServicio.getColumn(2).alignment = { vertical: 'middle', horizontal: 'center' };
+            hojaServicio.getColumn(3).alignment = { vertical: 'middle', wrapText: true };
+            hojaServicio.getColumn(4).alignment = { vertical: 'middle', horizontal: 'center' };
+            hojaServicio.getColumn(5).alignment = { horizontal: 'center', vertical: 'middle' };
+            hojaServicio.getColumn(6).alignment = { wrapText: true, vertical: 'middle' };
+
+            // Encabezado
+            hojaServicio.getRow(rowOffsetServicio).values = ['', 'Ítem', 'Criterio de evaluación', 'Estandar', 'Estado', 'Observaciones'];
             hojaServicio.getRow(rowOffsetServicio).font = { bold: true };
             hojaServicio.getRow(rowOffsetServicio).alignment = { horizontal: 'center' };
             for (let col = 2; col <= 6; col++) {
@@ -783,30 +793,48 @@ exports.descargarConsolidado = async (req, res, next) => {
             }
             rowOffsetServicio++;
 
-            // Consulta los resultados de los criterios
-            const {rows: resultadosItems} = await pool.query(
+            // Consulta de resultados
+            const { rows: resultadosItems } = await pool.query(
                 `SELECT * FROM resultados_items_evaluacion as rie
-                    INNER JOIN items_evaluacion as ie
-                    ON rie.item_id = ie.id
-                WHERE rie.criterio_id = $1 AND rie.auditoria_id = $2`, 
+                INNER JOIN items_evaluacion as ie
+                ON rie.item_id = ie.id
+                WHERE rie.criterio_id = $1 AND rie.auditoria_id = $2`,
                 [criterio.id, auditoriaId]
-            )
+            );
 
             const resultadoFiltrado = resultadosItems.filter(item => item.criterio_id);
-            const resultadosOrdenados = ordenarItems(resultadoFiltrado)
+            const resultadosOrdenados = ordenarItems(resultadoFiltrado);
 
-            resultadosOrdenados.forEach(async resultado => {
-                hojaServicio.addRow([
+            for (const resultado of resultadosOrdenados) {
+                const descripcion = await markdownHtmlToRichText(resultado.descripcion);
+                const observaciones = await markdownHtmlToRichText(resultado.observaciones);
+
+                const row = hojaServicio.addRow([
                     '',
                     resultado.item,
-                    await markdownHtmlToRichText(resultado.descripcion),
+                    descripcion,
                     nombresLargosEstandares[resultado.estandar] || "N/A",
                     nombresLargosResultados[resultado.resultado] || "",
-                    resultado.observaciones,
+                    observaciones,
                 ]);
+
+                // Si tiene color, aplicarlo a las celdas relevantes
+                if (resultado.highlight_color && colorMap[resultado.highlight_color]) {
+                    const fillColor = colorMap[resultado.highlight_color];
+                    for (let col = 2; col <= 6; col++) {
+                        row.getCell(col).fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: fillColor },
+                        };
+                    }
+                }
+
+
                 rowOffsetServicio++;
-            });
+            }
         }
+
 
         /** Firmas */
         rowOffset++;
