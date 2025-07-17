@@ -1,11 +1,67 @@
 const { throwNotFoundError, throwBadRequestError } = require("../errors/throwHTTPErrors");
 const { pool } = require("../initDB");
 const { validateMimeTypeFile, createFolder, uploadFile, validateSizeFile, checkFileExists } = require("../utils/files");
-const { snakeToCamel, calcularPromedioCumplimiento, calcularPromedioPonderado } = require("../utils/utils");
+const { snakeToCamel, calcularPromedioCumplimiento, calcularPromedioPonderado, ordenarItems } = require("../utils/utils");
 const ExcelJS = require('exceljs');
 const path = require("path");
 const fs = require("fs");
 const { generarTokenFirma } = require("../utils/hash");
+
+// Convierte Markdown → richText para ExcelJS
+async function markdownHtmlToRichText(content) {
+    if (!content || typeof content !== 'string') return content;
+
+    const { marked } = await import('marked');
+    const { JSDOM } = await import('jsdom');
+
+    // 1. Convierte el markdown a HTML (sin romper las etiquetas <u>)
+    const html = marked.parseInline(content);
+
+    // 2. Crea el DOM con el HTML completo
+    const dom = new JSDOM(`<div>${html}</div>`);
+    const nodes = [...dom.window.document.querySelector('div').childNodes];
+
+    // 3. Procesa los nodos en richText
+    const richText = nodes.map((node) => {
+        const text = node.textContent || '';
+        if (!text.trim()) return null;
+
+        const font = {};
+
+        if (node.nodeName === 'STRONG' || node.nodeName === 'B') font.bold = true;
+        if (node.nodeName === 'EM' || node.nodeName === 'I') font.italic = true;
+        if (node.nodeName === 'U') font.underline = true;
+
+        // Combina estilos anidados: <u><strong>Texto</strong></u>
+        if (node.nodeType === 1 && node.hasChildNodes()) {
+            const inner = node.firstChild;
+            if (inner?.nodeName === 'STRONG' || inner?.nodeName === 'B') font.bold = true;
+            if (inner?.nodeName === 'EM' || inner?.nodeName === 'I') font.italic = true;
+        }
+
+        return { text, font };
+    }).filter(Boolean);
+
+    return richText.length > 0 ? { richText } : content;
+}
+
+
+const nombresLargosEstandares = {
+    talentoHumano: "Talento Humano",
+    infraestructura: "Infraestructura",
+    dotacion: "Dotación",
+    medicamentos: "Medicamentos, dispositivos médicos e insumos",
+    procesosPrioritarios: "Procesos Prioritarios",
+    historiaClinica: "Historia Clínica",
+    interdependencia: "Interdependencia", 
+    otros_criterios: "Otros criterios de evaluación"
+};
+const nombresLargosResultados = {
+    cumple: "Cumple",
+    noCumple: "No cumple",
+    noAplica: "No aplica",
+    cumpleParcial: "Cumple parcial"
+};
 
 const obtenerConsolidado = async (auditoriaId) => {
     const query = `
@@ -450,8 +506,10 @@ exports.descargarConsolidado = async (req, res, next) => {
         let rowOffset = 3; // Índica el inicio de las filas
 
         /** Estándares */
-        resultadoConsolidado.estandares.sort((a, b) => a.servicioDetalles.nombre.localeCompare(b.servicioDetalles.nombre));
-        if (resultadoConsolidado.estandares.length > 0) {
+        const estandares = resultadoConsolidado.filter(c => c.tipo === "estandar");
+        estandares.sort((a, b) => a.servicioDetalles.localeCompare(b.nombre));
+
+        if (estandares.length > 0) {
             // Estilos del título de estándares
             hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
             hojaConsolidado.getCell(`B${rowOffset}`).value = 'Estándares';
@@ -482,10 +540,10 @@ exports.descargarConsolidado = async (req, res, next) => {
             rowOffset++;
 
             // Insertar los datos de los estándares
-            resultadoConsolidado.estandares.forEach((estandar) => {
+            estandares.forEach((estandar) => {
                 hojaConsolidado.addRow([
                     '',
-                    estandar.servicioDetalles.nombre,
+                    estandar.nombre,
                     '',
                     estandar.totalCriterios,
                     estandar.cumple,
@@ -514,8 +572,10 @@ exports.descargarConsolidado = async (req, res, next) => {
         };
        
         /** Servicios */
-        resultadoConsolidado.servicios.sort((a, b) => a.servicioDetalles.nombre.localeCompare(b.servicioDetalles.nombre));
-        if (resultadoConsolidado.servicios.length > 0) {
+        const servicios = resultadoConsolidado.filter(c => c.tipo === "servicio");
+
+        servicios.sort((a, b) => a.servicioDetalles.nombre.localeCompare(b.servicioDetalles.nombre));
+        if (servicios.length > 0) {
 
             // Estilos del título de servicios
             hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
@@ -543,7 +603,7 @@ exports.descargarConsolidado = async (req, res, next) => {
             rowOffset++;
 
             // Insertar los datos de los servicios
-            resultadoConsolidado.servicios.forEach((servicio) => {
+            servicios.forEach((servicio) => {
                 hojaConsolidado.addRow([
                     '',
                     servicio.servicioDetalles.nombre,
@@ -595,8 +655,8 @@ exports.descargarConsolidado = async (req, res, next) => {
         rowOffset++;
 
         // Establece los valores en la tabla
-        const promedioEstandares = calcularPromedioCumplimiento(resultadoConsolidado.estandares)
-        const promedioServicios = calcularPromedioCumplimiento(resultadoConsolidado.servicios)
+        const promedioEstandares = calcularPromedioCumplimiento(estandares)
+        const promedioServicios = calcularPromedioCumplimiento(servicios)
 
         // Asignación de valores de celdas
         hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`)
@@ -634,41 +694,40 @@ exports.descargarConsolidado = async (req, res, next) => {
         rowOffset++;
 
         /** Otros criterios de evaluación */
-       if (
-            Array.isArray(resultadoConsolidado.otros_criterios) &&
-            resultadoConsolidado.otros_criterios.length > 0
-        ) {
-            // Título
-            hojaConsolidado.getCell(`B${rowOffset}`).value = 'Otros criterios de evaluación';
-            hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`);
-            hojaConsolidado.getCell(`E${rowOffset}`).value = 'Cumplimiento (%)';
-            hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true };
-            hojaConsolidado.getCell(`E${rowOffset}`).font = { bold: true };
-
-            for (let col = 2; col <= 5; col++) {
-                hojaConsolidado.getCell(rowOffset, col).fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFD1D5DB' },
-                };
-            }
-
-            rowOffset++;
-
-            // Cuerpo de la tabla
-            resultadoConsolidado.otros_criterios.forEach((item) => {
-                hojaConsolidado.getCell(`B${rowOffset}`).value = item.servicioDetalles.nombre;
+        const otrosCriterios = resultadoConsolidado.filter(c => c.tipo === "otros_criterios");
+        
+        if ( Array.isArray(otrosCriterios) && otrosCriterios.length > 0 ) {
+                // Título
+                hojaConsolidado.getCell(`B${rowOffset}`).value = 'Otros criterios de evaluación';
                 hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`);
+                hojaConsolidado.getCell(`E${rowOffset}`).value = 'Cumplimiento (%)';
+                hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true };
+                hojaConsolidado.getCell(`E${rowOffset}`).font = { bold: true };
 
-                const celdaCumplimiento = hojaConsolidado.getCell(`E${rowOffset}`);
-                celdaCumplimiento.value = item.cumplimiento / 100;
-                celdaCumplimiento.numFmt = '0.0%';
+                for (let col = 2; col <= 5; col++) {
+                    hojaConsolidado.getCell(rowOffset, col).fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                        fgColor: { argb: 'FFD1D5DB' },
+                    };
+                }
 
                 rowOffset++;
-            });
 
-            rowOffset++;
-        }
+                // Cuerpo de la tabla
+                otrosCriterios.forEach((item) => {
+                    hojaConsolidado.getCell(`B${rowOffset}`).value = item.servicioDetalles.nombre;
+                    hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`);
+
+                    const celdaCumplimiento = hojaConsolidado.getCell(`E${rowOffset}`);
+                    celdaCumplimiento.value = item.cumplimiento / 100;
+                    celdaCumplimiento.numFmt = '0.0%';
+
+                    rowOffset++;
+                });
+
+                rowOffset++;
+            }
 
         /** CRITERIOS DE EVALUACION */
         const {rows: rowsCriteriosAuditorias} = await pool.query(
@@ -680,13 +739,13 @@ exports.descargarConsolidado = async (req, res, next) => {
         )
 
         const criterios = rowsCriteriosAuditorias || [];
-        for (const servicio of criterios) {
+        for (const criterio of criterios) {
             let rowOffsetServicio = 3
-            const hojaServicio = workbook.addWorksheet(servicio.nombre);
+            const hojaServicio = workbook.addWorksheet(criterio.nombre);
             
             // Estilos del título principal
             hojaServicio.mergeCells('B2:F2');
-            hojaServicio.getCell('B2').value = servicio.nombre;
+            hojaServicio.getCell('B2').value = criterio.nombre;
             hojaServicio.getCell('B2').font = { bold: true, size: 14, color: { argb: 'FFFFFF' }};
             hojaServicio.getCell('B2').alignment = { horizontal: 'center' };
             hojaServicio.getCell('B2').fill = {
@@ -725,20 +784,23 @@ exports.descargarConsolidado = async (req, res, next) => {
             rowOffsetServicio++;
 
             // Consulta los resultados de los criterios
-            const resultadosCriterios = await ResultadoCriterio.find({
-                servicio: servicio._id,
-                auditoria: auditoriaId
-            }).populate("criterio");
-        
-            const resultadoFiltrado = resultadosCriterios.filter(item => item.criterio);
-            const resultadosOrdenados = ordenarItemsResultado(resultadoFiltrado)
+            const {rows: resultadosItems} = await pool.query(
+                `SELECT * FROM resultados_items_evaluacion as rie
+                    INNER JOIN items_evaluacion as ie
+                    ON rie.item_id = ie.id
+                WHERE rie.criterio_id = $1 AND rie.auditoria_id = $2`, 
+                [criterio.id, auditoriaId]
+            )
 
-            resultadosOrdenados.forEach(resultado => {
+            const resultadoFiltrado = resultadosItems.filter(item => item.criterio_id);
+            const resultadosOrdenados = ordenarItems(resultadoFiltrado)
+
+            resultadosOrdenados.forEach(async resultado => {
                 hojaServicio.addRow([
                     '',
-                    resultado.criterio.item,
-                    resultado.criterio.descripcion,
-                    nombresLargosEstandares[resultado.criterio.estandar] || "N/A",
+                    resultado.item,
+                    await markdownHtmlToRichText(resultado.descripcion),
+                    nombresLargosEstandares[resultado.estandar] || "N/A",
                     nombresLargosResultados[resultado.resultado] || "",
                     resultado.observaciones,
                 ]);
@@ -772,9 +834,9 @@ exports.descargarConsolidado = async (req, res, next) => {
         hojaConsolidado.getColumn(13).width = 20; // Establecer el ancho de la columna 1 (A) en 20
         hojaConsolidado.getColumn(14).width = 20; // Establecer el ancho de la columna 1 (A) en 20
 
-        let rutaFirma = path.join(__dirname, `../public/images/image-default.png`);
+        let rutaFirma = path.join(__dirname, `../public/img/image-default.png`);
         firmas.forEach((firma, index) => {
-            const pathFile = path.join(__dirname, `../firmas/${firma.archivo}`)
+            const pathFile = path.join(__dirname, `../uploads/firmas/${firma.archivo}`)
             if (checkFileExists(pathFile)) {
                 rutaFirma = pathFile
             }
