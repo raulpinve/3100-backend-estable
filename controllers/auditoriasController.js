@@ -829,8 +829,6 @@ exports.descargarConsolidado = async (req, res, next) => {
                         };
                     }
                 }
-
-
                 rowOffsetServicio++;
             }
         }

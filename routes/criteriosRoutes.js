@@ -18,7 +18,6 @@ router.post("/",
 );
 
 router.get("/todos",
-    verificarPermisosEstandares,
     criteriosController.obtenerTodosLosCriterios
 )
 
@@ -32,7 +31,6 @@ router.get("/:grupoId/grupos",
 // Obtener criterios por ID
 router.get("/:criterioId", 
     validarCriterioId, 
-    verificarPermisosEstandares,
     criteriosController.obtenerCriterioPorId
 );
 
