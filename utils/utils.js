@@ -57,23 +57,20 @@ exports.setCabecerasSinCacheImg = (res) => {
 
 exports.ordenarItems = (elements) => {
     return elements.sort((a, b) => {
-        // Accedemos al campo 'item' de cada objeto y lo convertimos a string
-        const aString = (a.item !== null && a.item !== undefined) ? String(a.item) : '';
-        const bString = (b.item !== null && b.item !== undefined) ? String(b.item) : '';
+        // Limpiamos espacios y convertimos a números cada nivel
+        const aParts = (a.item ?? '').trim().split('.').map(n => Number(n));
+        const bParts = (b.item ?? '').trim().split('.').map(n => Number(n));
 
-        // Convertimos los valores de 'item' a arrays de números
-        const aParts = aString.split('.').map(Number);
-        const bParts = bString.split('.').map(Number);
+        const maxLen = Math.max(aParts.length, bParts.length);
 
-        // Comparamos las partes del 'item' parte por parte
-        for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-            const aPart = aParts[i] || 0; // Si no hay más partes, tratamos como 0
-            const bPart = bParts[i] || 0;
+        for (let i = 0; i < maxLen; i++) {
+            const aNum = aParts[i] ?? 0;
+            const bNum = bParts[i] ?? 0;
 
-            if (aPart < bPart) return -1;
-            if (aPart > bPart) return 1;
+            if (aNum < bNum) return -1;
+            if (aNum > bNum) return 1;
         }
 
-        return 0; // Son iguales
+        return 0;
     });
-}
+};
