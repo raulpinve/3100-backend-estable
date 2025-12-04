@@ -7,6 +7,10 @@ const path = require("path");
 const fs = require("fs");
 const { generarTokenFirma } = require("../utils/hash");
 
+function safeSheetName(name) {
+    return name.replace(/[:\/\\?\*\[\]]/g, '').substring(0, 31);
+}
+
 // Convierte Markdown → richText para ExcelJS
 async function markdownHtmlToRichText(content) {
     if (!content || typeof content !== 'string') return content;
@@ -52,8 +56,6 @@ const colorMap = {
   blue:   'FF3B82F6', // azul Tailwind (blue-500)
   green:  'FF10B981', // verde Tailwind (green-500)
 };
-
-
 
 const nombresLargosEstandares = {
     talentoHumano: "Talento Humano",
@@ -485,433 +487,224 @@ exports.eliminarCriteriosAuditoria = async (req, res, next) => {
 
 exports.descargarConsolidado = async (req, res, next) => {
     try {
-        const { auditoriaId } = req.params
-
+        const { auditoriaId } = req.params;
         const workbook = new ExcelJS.Workbook();
 
-        // Obtiene el consolidado (resumen) de los resultados de la auditoría por servicios
+        // ----------------------------
+        // Helpers seguros
+        // ----------------------------
+        const safeSheetName = (name) => name?.toString().replace(/[:\/\\?\*\[\]]/g,'').substring(0,31) || 'Hoja';
+        const safeValue = (value, fallback='') => {
+            if(value === undefined || value === null) return fallback;
+            if(typeof value === 'number') return value;
+            if(typeof value === 'string') return value;
+            return value.toString();
+        }
+
+        const safeRichText = (obj) => {
+            if(!obj) return '';
+            if(Array.isArray(obj?.richText)) return obj.richText.map(r => r.text).join('');
+            return safeValue(obj);
+        }
+
+        // ----------------------------
+        // Obtener consolidado
+        // ----------------------------
         const resultadoConsolidado = await obtenerConsolidado(auditoriaId);
 
-        /** INFORME CONSOLIDADO */
-        const hojaConsolidado = workbook.addWorksheet('Consolidado');
+        /** HOJA CONSOLIDADO */
+        const hojaConsolidado = workbook.addWorksheet(safeSheetName('Consolidado'));
 
-        // Título principal
         hojaConsolidado.mergeCells('B2:I2');
         hojaConsolidado.getCell('B2').value = 'Informe Consolidado';
         hojaConsolidado.getCell('B2').font = { bold: true, size: 14, color: { argb: 'FFFFFF' }};
         hojaConsolidado.getCell('B2').alignment = { horizontal: 'center' };
-       
-        // Estilos de las columnas
-        hojaConsolidado.columns = [{ width: 5 },{ width: 20 },{ width: 20 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 20 } ];
-        hojaConsolidado.getColumn(2).alignment = { wrapText: true, vertical: 'middle' };
-        hojaConsolidado.getColumn(3).alignment = { horizontal: 'center', vertical: 'middle'};
-        hojaConsolidado.getColumn(4).alignment = { horizontal: 'center', vertical: 'middle' };
-        hojaConsolidado.getColumn(5).alignment = { horizontal: 'center', vertical: 'middle' };
-        hojaConsolidado.getColumn(6).alignment = { horizontal: 'center', vertical: 'middle' };
-        hojaConsolidado.getColumn(7).alignment = { horizontal: 'center', vertical: 'middle' };
-        hojaConsolidado.getColumn(8).alignment = { horizontal: 'center', vertical: 'middle' };
-        hojaConsolidado.getColumn(9).alignment = { horizontal: 'center', vertical: 'middle' };
 
-        let rowOffset = 3; // Índica el inicio de las filas
+        hojaConsolidado.columns = Array(9).fill().map((_, i) => ({ width: i===0 ? 5 : 20 }));
+        for(let i=2;i<=9;i++){
+            hojaConsolidado.getColumn(i).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        }
 
-        /** Estándares */
+        let rowOffset = 3;
+
+        /** ESTÁNDARES */
         const estandares = resultadoConsolidado.filter(c => c.tipo === "estandar");
-        estandares.sort((a, b) => a.servicioDetalles.localeCompare(b.nombre));
+        estandares.sort((a,b) => safeValue(a.servicioDetalles,'').toLowerCase().localeCompare(safeValue(b.nombre,'').toLowerCase()));
 
-        if (estandares.length > 0) {
-            // Estilos del título de estándares
+        if(estandares.length>0){
             hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
             hojaConsolidado.getCell(`B${rowOffset}`).value = 'Estándares';
             hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true, size: 12 };
             hojaConsolidado.getCell(`B${rowOffset}`).alignment = { horizontal: 'center' };
-            hojaConsolidado.getCell(`B${rowOffset}`).value = 'Estándares';
-            hojaConsolidado.getCell(`B${rowOffset}`).fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFD1D5DB' },
-            };
-
-            rowOffset++
-
-            for (let col = 2; col <= 9; col++) { 
-                hojaConsolidado.getCell(4, col).fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FFE5E7EB' }, // Color bg-slate-300
-                };
-            }
-
-            // Estilos del encabezados de la tabla de Estándares
-            hojaConsolidado.getRow(rowOffset).values = ['','Estandar', '', 'Total criterios', 'Cumple', 'No Cumple', 'Cumple parcial', 'No Aplica', 'Cumplimiento (%)'];
-            hojaConsolidado.getRow(rowOffset).font = { bold: true };
-            
-            hojaConsolidado.getRow(rowOffset).alignment = { horizontal: 'center' };
+            hojaConsolidado.getCell(`B${rowOffset}`).fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFD1D5DB'} };
             rowOffset++;
 
-            // Insertar los datos de los estándares
-            estandares.forEach((estandar) => {
+            hojaConsolidado.getRow(rowOffset).values = ['', 'Estandar', '', 'Total criterios', 'Cumple', 'No Cumple', 'Cumple parcial', 'No Aplica', 'Cumplimiento (%)'];
+            hojaConsolidado.getRow(rowOffset).font = { bold:true };
+            hojaConsolidado.getRow(rowOffset).alignment = { horizontal:'center' };
+            rowOffset++;
+
+            estandares.forEach(estandar => {
                 hojaConsolidado.addRow([
                     '',
-                    estandar.nombre,
+                    safeValue(estandar.nombre),
                     '',
-                    estandar.totalCriterios,
-                    estandar.cumple,
-                    estandar.noCumple,
-                    estandar.cumpleParcial,
-                    estandar.noAplica,
-                    estandar.cumplimiento /100
+                    safeValue(estandar.totalCriterios,0),
+                    safeValue(estandar.cumple,0),
+                    safeValue(estandar.noCumple,0),
+                    safeValue(estandar.cumpleParcial,0),
+                    safeValue(estandar.noAplica,0),
+                    safeValue(estandar.cumplimiento,0)/100
                 ]);
                 hojaConsolidado.mergeCells(`B${rowOffset}:C${rowOffset}`);
-
-                // Aplica la configuración para mostrar el la celda de cumplimiento en formato de porcentaje
                 const lastRow = hojaConsolidado.lastRow;
-                lastRow.getCell(9).numFmt = '0.0%';
+                if(typeof lastRow.getCell(9).value === 'number') lastRow.getCell(9).numFmt='0.0%';
                 rowOffset++;
             });
-            // Dejar una fila en blanco antes de la siguiente sección
             rowOffset++;
-            hojaConsolidado.mergeCells(`B4:C4`);
         }
 
-        // Colorea las celdas que contienen al título: Informe Consolidado
-         hojaConsolidado.getCell('B2').fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF4B5563' },
-        };
-       
-        /** Servicios */
+        /** SERVICIOS */
         const servicios = resultadoConsolidado.filter(c => c.tipo === "servicio");
+        servicios.sort((a,b) => safeValue(a.servicioDetalles?.nombre,'').toLowerCase().localeCompare(safeValue(b.servicioDetalles?.nombre,'').toLowerCase()));
 
-        servicios.sort((a, b) => a.servicioDetalles.nombre.localeCompare(b.servicioDetalles.nombre));
-        if (servicios.length > 0) {
-
-            // Estilos del título de servicios
+        if(servicios.length>0){
             hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
             hojaConsolidado.getCell(`B${rowOffset}`).value = 'Servicios';
-            hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true, size: 12 };
-            hojaConsolidado.getCell(`B${rowOffset}`).fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFD1D5DB' },
-            };
-            hojaConsolidado.getCell(`B${rowOffset}`).alignment = { horizontal: 'center' };
+            hojaConsolidado.getCell(`B${rowOffset}`).font = { bold:true, size:12 };
+            hojaConsolidado.getCell(`B${rowOffset}`).fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFD1D5DB'} };
+            hojaConsolidado.getCell(`B${rowOffset}`).alignment = { horizontal:'center' };
             rowOffset++;
 
-            // Estilos del encabezados de la tabla de servicios
-            hojaConsolidado.getRow(rowOffset).values = ['','Servicio', '', 'Total criterios', 'Cumple', 'No Cumple', 'Cumple parcial', 'No Aplica', 'Cumplimiento (%)'];
-            hojaConsolidado.getRow(rowOffset).font = { bold: true };
-            for (let col = 2; col <= 9; col++) {
-                hojaConsolidado.getCell(rowOffset, col).fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FFE5E7EB' },
-                };
-            }
-            hojaConsolidado.getRow(rowOffset).alignment = { horizontal: 'center' };
+            hojaConsolidado.getRow(rowOffset).values = ['', 'Servicio', '', 'Total criterios', 'Cumple', 'No Cumple', 'Cumple parcial', 'No Aplica', 'Cumplimiento (%)'];
+            hojaConsolidado.getRow(rowOffset).font = { bold:true };
+            hojaConsolidado.getRow(rowOffset).alignment = { horizontal:'center' };
             rowOffset++;
 
-            // Insertar los datos de los servicios
-            servicios.forEach((servicio) => {
+            servicios.forEach(servicio => {
                 hojaConsolidado.addRow([
                     '',
-                    servicio.servicioDetalles.nombre,
+                    safeValue(servicio.servicioDetalles?.nombre),
                     '',
-                    servicio.totalCriterios,
-                    servicio.cumple,
-                    servicio.noCumple,
-                    servicio.cumpleParcial,
-                    servicio.noAplica,
-                    servicio.cumplimiento /100 
+                    safeValue(servicio.totalCriterios,0),
+                    safeValue(servicio.cumple,0),
+                    safeValue(servicio.noCumple,0),
+                    safeValue(servicio.cumpleParcial,0),
+                    safeValue(servicio.noAplica,0),
+                    safeValue(servicio.cumplimiento,0)/100
                 ]);
                 hojaConsolidado.mergeCells(`B${rowOffset}:C${rowOffset}`);
-
-                // Aplica la configuración para mostrar el la celda de cumplimiento en formato de porcentaje
                 const lastRow = hojaConsolidado.lastRow;
-                lastRow.getCell(9).numFmt = '0.0%';
+                if(typeof lastRow.getCell(9).value==='number') lastRow.getCell(9).numFmt='0.0%';
                 rowOffset++;
             });
-            // Dejar una fila en blanco antes de la siguiente sección
             rowOffset++;
         }
 
-        /** REPORTE */
-        // Estilos para el título de reporte
-        hojaConsolidado.mergeCells(`B${rowOffset}:E${rowOffset}`);
-        hojaConsolidado.getCell(`B${rowOffset}`).value = 'Reporte';
-        hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true, size: 12, color: { argb: 'FFFFFF' } };
-        hojaConsolidado.getCell(`B${rowOffset}`).fill = {
-            type: 'pattern',
-            pattern: 'solid', 
-            fgColor: { argb: 'FF4B5563' },
-        };
-        hojaConsolidado.getCell(`B${rowOffset}`).alignment = { horizontal: 'center' };
-        rowOffset++;
-
-        // Estilos del encabezado de la tabla
-        hojaConsolidado.getCell(`B${rowOffset}`).value = 'Estándares y criterios';
-        hojaConsolidado.mergeCells(`B${rowOffset}:E${rowOffset}`);
-        hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true };
-        hojaConsolidado.getCell(`E${rowOffset}`).value = 'Cumplimiento (%)';
-        hojaConsolidado.getCell(`E${rowOffset}`).font = { bold: true };
-        for (let col = 2; col <= 4; col++) {
-            hojaConsolidado.getCell(rowOffset, col).fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFD1D5DB' },
-            };
-        }
-        rowOffset++;
-
-        // Establece los valores en la tabla
-        const promedioEstandares = calcularPromedioCumplimiento(estandares)
-        const promedioServicios = calcularPromedioCumplimiento(servicios)
-
-        // Asignación de valores de celdas
-        hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`)
-        hojaConsolidado.getCell(`B${rowOffset}`).value = 'Estándares y criterios aplicables a todos los servicios';
-        hojaConsolidado.getCell(`E${rowOffset}`).value = promedioEstandares / 100;  // Asignamos el valor a la columna correspondiente
-        hojaConsolidado.getCell(`E${rowOffset}`).numFmt  = '0.0%';  // Asignamos el valor a la columna correspondiente
-        
-        rowOffset++;  // Avanzar a la siguiente fila
-
-        hojaConsolidado.getCell(`B${rowOffset}`).value = 'Servicios';
-        hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`)
-        hojaConsolidado.getCell(`E${rowOffset}`).value = promedioServicios / 100;  // Asignamos el valor a la columna correspondiente
-        hojaConsolidado.getCell(`E${rowOffset}`).numFmt  = '0.0%';  // Asignamos el valor a la columna correspondiente
-        rowOffset++;  // Avanzar a la siguiente fila
-
-        hojaConsolidado.getCell(`B${rowOffset}`).value = 'Total Cumplimiento';
-        hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`)
-        hojaConsolidado.getCell(`E${rowOffset}`).value = calcularPromedioPonderado(promedioEstandares, promedioServicios) / 100;  // Asignamos el valor a la columna correspondiente
-        hojaConsolidado.getCell(`E${rowOffset}`).numFmt  = '0.0%';  // Asignamos el valor a la columna correspondiente
-
-        // Aplicar color de fondo para el "total cumplimiento" de reportes
-        hojaConsolidado.getCell(`B${rowOffset}`).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF4B5563' }, 
-        }
-        hojaConsolidado.getCell(`E${rowOffset}`).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF4B5563' }, 
-        };
-        hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true,  color: { argb: 'FFFFFF' } };
-        hojaConsolidado.getCell(`E${rowOffset}`).font = { bold: true,  color: { argb: 'FFFFFF' } };
-        rowOffset++;
-        rowOffset++;
-
-        /** Otros criterios de evaluación */
-        const otrosCriterios = resultadoConsolidado.filter(c => c.tipo === "otros_criterios");
-        
-        if ( Array.isArray(otrosCriterios) && otrosCriterios.length > 0 ) {
-                // Título
-                hojaConsolidado.getCell(`B${rowOffset}`).value = 'Otros criterios de evaluación';
-                hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`);
-                hojaConsolidado.getCell(`E${rowOffset}`).value = 'Cumplimiento (%)';
-                hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true };
-                hojaConsolidado.getCell(`E${rowOffset}`).font = { bold: true };
-
-                for (let col = 2; col <= 5; col++) {
-                    hojaConsolidado.getCell(rowOffset, col).fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                        fgColor: { argb: 'FFD1D5DB' },
-                    };
-                }
-
-                rowOffset++;
-
-                // Cuerpo de la tabla
-                otrosCriterios.forEach((item) => {
-                    hojaConsolidado.getCell(`B${rowOffset}`).value = item.servicioDetalles.nombre;
-                    hojaConsolidado.mergeCells(`B${rowOffset}:D${rowOffset}`);
-
-                    const celdaCumplimiento = hojaConsolidado.getCell(`E${rowOffset}`);
-                    celdaCumplimiento.value = item.cumplimiento / 100;
-                    celdaCumplimiento.numFmt = '0.0%';
-
-                    rowOffset++;
-                });
-
-                rowOffset++;
-            }
-
-        /** CRITERIOS DE EVALUACION */
+        /** CRITERIOS DE EVALUACIÓN */
         const {rows: rowsCriteriosAuditorias} = await pool.query(
             `SELECT * FROM auditoria_criterio 
-                INNER JOIN criterios_evaluacion
-                ON auditoria_criterio.criterio_evaluacion_id = criterios_evaluacion.id
-                WHERE auditoria_criterio.auditoria_id = $1
-            `, [auditoriaId]
-        )
-
+             INNER JOIN criterios_evaluacion
+             ON auditoria_criterio.criterio_evaluacion_id = criterios_evaluacion.id
+             WHERE auditoria_criterio.auditoria_id = $1`, [auditoriaId]
+        );
         const criterios = rowsCriteriosAuditorias || [];
-        for (const criterio of criterios) {
-            let rowOffsetServicio = 3;
-            const hojaServicio = workbook.addWorksheet(criterio.nombre);
 
-            // Título principal
+        for(const criterio of criterios){
+            let rowOffsetServicio = 3;
+            const hojaServicio = workbook.addWorksheet(safeSheetName(criterio.nombre));
+
             hojaServicio.mergeCells('B2:F2');
-            hojaServicio.getCell('B2').value = criterio.nombre;
-            hojaServicio.getCell('B2').font = { bold: true, size: 14, color: { argb: 'FFFFFF' } };
-            hojaServicio.getCell('B2').alignment = { horizontal: 'center' };
-            hojaServicio.getCell('B2').fill = hojaServicio.getCell('E2').fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF4B5563' },
-            };
+            hojaServicio.getCell('B2').value = safeValue(criterio.nombre);
+            hojaServicio.getCell('B2').font = { bold:true, size:14, color:{argb:'FFFFFF'} };
+            hojaServicio.getCell('B2').alignment = { horizontal:'center' };
+            hojaServicio.getCell('B2').fill = hojaServicio.getCell('E2').fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF4B5563'} };
 
             hojaServicio.columns = [
-                { width: 5 }, { width: 20 }, { width: 65 },
-                { width: 20 }, { width: 22 }, { width: 50 }
+                {width:5},{width:20},{width:65},
+                {width:20},{width:22},{width:50}
             ];
 
-            hojaServicio.autoFilter = {
-                from: 'D3',
-                to: 'E3',
-            };
+            hojaServicio.autoFilter = { from:'D3', to:'E3' };
+            hojaServicio.getColumn(2).alignment = { vertical:'middle', horizontal:'center' };
+            hojaServicio.getColumn(3).alignment = { vertical:'middle', wrapText:true };
+            hojaServicio.getColumn(4).alignment = { vertical:'middle', horizontal:'center' };
+            hojaServicio.getColumn(5).alignment = { horizontal:'center', vertical:'middle' };
+            hojaServicio.getColumn(6).alignment = { wrapText:true, vertical:'middle' };
 
-            // Estilos columnas
-            hojaServicio.getColumn(2).alignment = { vertical: 'middle', horizontal: 'center' };
-            hojaServicio.getColumn(3).alignment = { vertical: 'middle', wrapText: true };
-            hojaServicio.getColumn(4).alignment = { vertical: 'middle', horizontal: 'center' };
-            hojaServicio.getColumn(5).alignment = { horizontal: 'center', vertical: 'middle' };
-            hojaServicio.getColumn(6).alignment = { wrapText: true, vertical: 'middle' };
-
-            // Encabezado
             hojaServicio.getRow(rowOffsetServicio).values = ['', 'Ítem', 'Criterio de evaluación', 'Estandar', 'Estado', 'Observaciones'];
-            hojaServicio.getRow(rowOffsetServicio).font = { bold: true };
-            hojaServicio.getRow(rowOffsetServicio).alignment = { horizontal: 'center' };
-            for (let col = 2; col <= 6; col++) {
-                hojaServicio.getCell(rowOffsetServicio, col).fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FFD1D5DB' },
-                };
+            hojaServicio.getRow(rowOffsetServicio).font = { bold:true };
+            hojaServicio.getRow(rowOffsetServicio).alignment = { horizontal:'center' };
+            for(let col=2; col<=6; col++){
+                hojaServicio.getCell(rowOffsetServicio,col).fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFD1D5DB'} };
             }
             rowOffsetServicio++;
 
-            // Consulta de resultados
-            const { rows: resultadosItems } = await pool.query(
+            const {rows: resultadosItems} = await pool.query(
                 `SELECT * FROM resultados_items_evaluacion as rie
-                INNER JOIN items_evaluacion as ie
-                ON rie.item_id = ie.id
-                WHERE rie.criterio_id = $1 AND rie.auditoria_id = $2`,
-                [criterio.id, auditoriaId]
+                 INNER JOIN items_evaluacion as ie
+                 ON rie.item_id = ie.id
+                 WHERE rie.criterio_id = $1 AND rie.auditoria_id = $2`,
+                 [criterio.id, auditoriaId]
             );
 
             const resultadoFiltrado = resultadosItems.filter(item => item.criterio_id);
             const resultadosOrdenados = ordenarItems(resultadoFiltrado);
 
-            for (const resultado of resultadosOrdenados) {
-                const descripcion = await markdownHtmlToRichText(resultado.descripcion);
-                const observaciones = await markdownHtmlToRichText(resultado.observaciones);
+            for(const resultado of resultadosOrdenados){
+                const descripcionObj = await markdownHtmlToRichText(resultado.descripcion);
+                const observacionesObj = await markdownHtmlToRichText(resultado.observaciones);
 
-                const row = hojaServicio.addRow([
+                hojaServicio.addRow([
                     '',
-                    resultado.item,
-                    descripcion,
-                    nombresLargosEstandares[resultado.estandar] || "N/A",
-                    nombresLargosResultados[resultado.resultado] || "",
-                    observaciones,
+                    safeValue(resultado.item),
+                    safeRichText(descripcionObj),
+                    safeValue(nombresLargosEstandares[resultado.estandar],'N/A'),
+                    safeValue(nombresLargosResultados[resultado.resultado],''),
+                    safeRichText(observacionesObj)
                 ]);
-
-                // Si tiene color, aplicarlo a las celdas relevantes
-                if (resultado.highlight_color && colorMap[resultado.highlight_color]) {
-                    const fillColor = colorMap[resultado.highlight_color];
-                    for (let col = 2; col <= 6; col++) {
-                        row.getCell(col).fill = {
-                        type: 'pattern',
-                        pattern: 'solid',
-                        fgColor: { argb: fillColor },
-                        };
-                    }
-                }
-                rowOffsetServicio++;
             }
         }
 
-
-        /** Firmas */
-        rowOffset++;
-        
-        // Definir las coordenadas iniciales para colocar las imágenes
-        let colStart = 1; // La primera imagen empieza en la columna 1
-
-        hojaConsolidado.getCell(`B${rowOffset}`).value = 'Firmas';
-        hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true, size: 12 };
-
-        // Obtener firmas
+        /** FIRMAS */
+        let colStart = 1;
         const {rows: rowsFirmas} = await pool.query(
             `SELECT * FROM auditoria_firma 
-                INNER JOIN firmas
-                ON auditoria_firma.firma_id = firmas.id
-                WHERE auditoria_firma.auditoria_id = $1
-            `, [auditoriaId]
-        )
-
-        const firmas = rowsFirmas
-
-        hojaConsolidado.getColumn(10).width = 20; // Establecer el ancho de la columna 1 (A) en 20
-        hojaConsolidado.getColumn(11).width = 20; // Establecer el ancho de la columna 1 (A) en 20
-        hojaConsolidado.getColumn(12).width = 20; // Establecer el ancho de la columna 1 (A) en 20
-        hojaConsolidado.getColumn(13).width = 20; // Establecer el ancho de la columna 1 (A) en 20
-        hojaConsolidado.getColumn(14).width = 20; // Establecer el ancho de la columna 1 (A) en 20
-
-        let rutaFirma = path.join(__dirname, `../public/img/image-default.png`);
-        firmas.forEach((firma, index) => {
-            const pathFile = path.join(__dirname, `../uploads/firmas/${firma.archivo}`)
-            if (checkFileExists(pathFile)) {
-                rutaFirma = pathFile
-            }
-
-            // Agregar cada imagen al libro de trabajo
-            const imageId = workbook.addImage({
-                filename: rutaFirma, // Ruta de la imagen
-                extension: "png", // Tipo de imagen
-            });
-
-            // Agregar la imagen a la hoja de trabajo
-            hojaConsolidado.addImage(imageId, {
-                tl: { col: colStart, row: rowOffset }, // Posición de la imagen
-                // ext: { width: 120, height: 80 },
-                br: { col: colStart + 1, row: rowOffset + 4 }, // Tamaño de la imagen
-            });
-
-            hojaConsolidado.getCell(rowOffset + 5, colStart +1 ).value = firma.nombresCompletos;
-            hojaConsolidado.getCell(rowOffset + 5, colStart +1 ).font = { bold: true };
-
-            hojaConsolidado.getCell(rowOffset + 5, colStart + 1).alignment = {
-                vertical: 'top',    // Alinear el texto verticalmente al centro
-                wrapText: true         // Activar el ajuste automático de texto
-            };
-            
-            hojaConsolidado.getCell(rowOffset + 6, colStart + 1 ).value = firma.rol.replace(/\b\w/g, char => char.toUpperCase());
-            hojaConsolidado.getCell(rowOffset + 6, colStart + 1 ).alignment = { horizontal: 'left' };
-
-            // Mover la columna de inicio para la siguiente imagen (colocarlas una al lado de la otra)
-            colStart += 1; // Aumenta la columna para la próxima imagen
-            
-        })
-
-        res.setHeader(
-            'Content-Type',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+             INNER JOIN firmas
+             ON auditoria_firma.firma_id = firmas.id
+             WHERE auditoria_firma.auditoria_id = $1`, [auditoriaId]
         );
-        res.setHeader(
-            'Content-Disposition',
-            'attachment; filename=ReporteCompleto.xlsx'
-        );
+        const firmas = rowsFirmas || [];
+        let rutaFirmaDefault = path.join(__dirname, `../public/img/image-default.png`);
+        [10,11,12,13,14].forEach(c=>hojaConsolidado.getColumn(c).width=20);
 
+        firmas.forEach((firma,index)=>{
+            const pathFile = path.join(__dirname, `../uploads/firmas/${firma.archivo}`);
+            const rutaFirma = checkFileExists(pathFile) ? pathFile : rutaFirmaDefault;
+
+            const imageId = workbook.addImage({ filename: rutaFirma, extension:'png' });
+            hojaConsolidado.addImage(imageId, { tl:{col:colStart,row:rowOffset}, br:{col:colStart+1,row:rowOffset+4} });
+
+            hojaConsolidado.getCell(rowOffset+5,colStart+1).value = safeValue(firma.nombresCompletos,'');
+            hojaConsolidado.getCell(rowOffset+5,colStart+1).font = { bold:true };
+            hojaConsolidado.getCell(rowOffset+5,colStart+1).alignment = { vertical:'top', wrapText:true };
+
+            hojaConsolidado.getCell(rowOffset+6,colStart+1).value = safeValue(firma.rol,'').replace(/\b\w/g,c=>c.toUpperCase());
+            hojaConsolidado.getCell(rowOffset+6,colStart+1).alignment = { horizontal:'left' };
+            colStart++;
+        });
+
+        res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition','attachment; filename=ReporteCompleto.xlsx');
         await workbook.xlsx.write(res);
         res.status(200).end();
 
-    } catch (error) {
-        next(error)
+    } catch(error){
+        next(error);
     }
 }
+
+
 
 exports.obtenerConsolidadoAuditoria = async (req, res, next) => {
     try {
