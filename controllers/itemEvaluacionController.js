@@ -68,11 +68,19 @@ const obtenerItems = async (req, res, next) => {
             LIMIT $2 OFFSET $3
         `, [criterioId, limite, offset]);
 
-        const totalQuery = await pool.query(`SELECT COUNT(*) FROM items_evaluacion WHERE criterio_id = $1`, [criterioId]);
+        const totalQuery = await pool.query(
+            `SELECT COUNT(*) FROM items_evaluacion WHERE criterio_id = $1`,
+            [criterioId]
+        );
         const totalRegistros = parseInt(totalQuery.rows[0].count);
         const totalPaginas = Math.ceil(totalRegistros / limite);
 
-        const items = itemsQuery.rows; // items ya ordenados
+        console.log('Items encontrados:', itemsQuery.rows.length);
+        console.log('Total registros:', totalRegistros);
+        console.log('Total páginas:', totalPaginas);
+        console.log('Primer item:', itemsQuery.rows[0]?.item);
+
+        const items = itemsQuery.rows;
 
         return res.status(200).json({
             statusCode: 200,
@@ -84,6 +92,7 @@ const obtenerItems = async (req, res, next) => {
             data: items.map(snakeToCamel)
         });
     } catch (err) {
+        console.error('ERROR:', err);
         next(err);
     }
 };
