@@ -527,10 +527,11 @@ exports.descargarConsolidado = async (req, res, next) => {
         /** ESTÁNDARES */
         const estandares = resultadoConsolidado.filter(c => c.tipo === "estandar");
         estandares.sort((a,b) => {
-            const aNombre = safeValue(a.nombre,'').toLowerCase();
-            const bNombre = safeValue(b.nombre,'').toLowerCase();
+            const aNombre = (a.nombre ?? '').toString().toLowerCase();
+            const bNombre = (b.nombre ?? '').toString().toLowerCase();
             return aNombre.localeCompare(bNombre);
         });
+
 
         if(estandares.length>0){
             hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
@@ -567,11 +568,12 @@ exports.descargarConsolidado = async (req, res, next) => {
 
         /** SERVICIOS */
         const servicios = resultadoConsolidado.filter(c => c.tipo === "servicio");
-        servicios.sort((a,b) => {
-            const aNombre = safeValue(a.servicioDetalles?.nombre,'').toLowerCase();
-            const bNombre = safeValue(b.servicioDetalles?.nombre,'').toLowerCase();
+        servicios.sort((a, b) => {
+            const aNombre = (a.servicioDetalles?.nombre ?? '').toString().toLowerCase();
+            const bNombre = (b.servicioDetalles?.nombre ?? '').toString().toLowerCase();
             return aNombre.localeCompare(bNombre);
         });
+
 
         if(servicios.length>0){
             hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
