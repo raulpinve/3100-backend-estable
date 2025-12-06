@@ -47,7 +47,11 @@ exports.obtenerCriterios = async (req, res, next) => {
             LIMIT $2 OFFSET $3
         `, [ grupoId, limite, offset ]);
 
-        const totalQuery = await pool.query(`SELECT COUNT(*) FROM criterios_evaluacion`);
+        const totalQuery = await pool.query(
+            `SELECT COUNT(*) FROM criterios_evaluacion WHERE grupo_id = $1`, 
+            [grupoId]
+        );
+        
         const totalRegistros = parseInt(totalQuery.rows[0].count);
         const totalPaginas = Math.ceil(totalRegistros / limite);
 

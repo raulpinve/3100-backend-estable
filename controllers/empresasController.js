@@ -71,15 +71,15 @@ const obtenerEmpresas = async (req, res, next) => {
         let contador = 2;
 
         if (consulta) {
-            filtros += ` AND nombre ILIKE $${contador}`;
+            // Usar LOWER para aprovechar el índice
+            filtros += ` AND LOWER(nombre) LIKE LOWER($${contador})`;
             valores.push(`%${consulta}%`);
             contador++;
         }
 
-        // 1. Contar total de empresas
-        const { rows: totalRows } = await pool.query(`
-            SELECT COUNT(*) AS total FROM empresas WHERE ${filtros}
-        `, valores);
+        // 1. Contar total (más eficiente)
+        const countQuery = `SELECT COUNT(*) AS total FROM empresas WHERE ${filtros}`;
+        const { rows: totalRows } = await pool.query(countQuery, valores);
 
         const totalEmpresas = parseInt(totalRows[0].total);
         const totalPaginas = Math.ceil(totalEmpresas / tamanoPagina) || 1;
@@ -87,13 +87,15 @@ const obtenerEmpresas = async (req, res, next) => {
         // 2. Obtener datos paginados
         valores.push(tamanoPagina, offset);
 
-        const { rows: empresas } = await pool.query(`
+        const dataQuery = `
             SELECT id, nombre, owner, created_at
             FROM empresas
             WHERE ${filtros}
             ORDER BY created_at DESC NULLS LAST
             LIMIT $${contador} OFFSET $${contador + 1}
-        `, valores);
+        `;
+        
+        const { rows: empresas } = await pool.query(dataQuery, valores);
 
         return res.status(200).json({
             statusCode: 200,
