@@ -493,19 +493,19 @@ exports.descargarConsolidado = async (req, res, next) => {
         // ----------------------------
         // Helpers seguros
         // ----------------------------
-        const safeSheetName = (name) => name?.toString().replace(/[:\/\\?\*\[\]]/g,'').substring(0,31) || 'Hoja';
-        const safeValue = (value, fallback='') => {
-            if(value === undefined || value === null) return fallback;
-            if(typeof value === 'number') return value;
-            if(typeof value === 'string') return value;
-            return value.toString();
-        }
+        const safeSheetName = (name) =>
+            name?.toString().replace(/[:\/\\?\*\[\]]/g, "").substring(0, 31) || "Hoja";
 
-        const safeRichText = (obj) => {
-            if(!obj) return '';
-            if(Array.isArray(obj?.richText)) return obj.richText.map(r => r.text).join('');
-            return safeValue(obj);
-        }
+        const safeText = (v, fallback = "") =>
+            (v === undefined || v === null) ? fallback : String(v);
+
+        const safeNumber = (v, fallback = 0) =>
+            typeof v === "number" ? v : fallback;
+
+        const safeRichText = (obj) =>
+            Array.isArray(obj?.richText)
+                ? obj.richText.map(r => r.text).join("")
+                : safeText(obj);
 
         // ----------------------------
         // Obtener consolidado
@@ -513,197 +513,286 @@ exports.descargarConsolidado = async (req, res, next) => {
         const resultadoConsolidado = await obtenerConsolidado(auditoriaId);
 
         /** HOJA CONSOLIDADO */
-        const hojaConsolidado = workbook.addWorksheet(safeSheetName('Consolidado'));
+        const hojaConsolidado = workbook.addWorksheet(safeSheetName("Consolidado"));
 
-        hojaConsolidado.mergeCells('B2:I2');
-        hojaConsolidado.getCell('B2').value = 'Informe Consolidado';
-        hojaConsolidado.getCell('B2').font = { bold: true, size: 14, color: { argb: 'FFFFFF' }};
-        hojaConsolidado.getCell('B2').alignment = { horizontal: 'center' };
+        hojaConsolidado.mergeCells("B2:I2");
+        hojaConsolidado.getCell("B2").value = "Informe Consolidado";
+        hojaConsolidado.getCell("B2").font = { bold: true, size: 14, color: { argb: "FFFFFF" } };
+        hojaConsolidado.getCell("B2").alignment = { horizontal: "center" };
 
-        hojaConsolidado.columns = Array(9).fill().map((_, i) => ({ width: i===0 ? 5 : 20 }));
-        for(let i=2;i<=9;i++){
-            hojaConsolidado.getColumn(i).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        hojaConsolidado.columns = Array(9)
+            .fill()
+            .map((_, i) => ({ width: i === 0 ? 5 : 20 }));
+
+        for (let i = 2; i <= 9; i++) {
+            hojaConsolidado.getColumn(i).alignment = {
+                horizontal: "center",
+                vertical: "middle",
+                wrapText: true,
+            };
         }
 
         let rowOffset = 3;
 
-        /** ESTÁNDARES */
-        const estandares = resultadoConsolidado.filter(c => c.tipo === "estandar");
-        estandares.sort((a,b) => safeValue(a.servicioDetalles,'').toLowerCase().localeCompare(safeValue(b.nombre,'').toLowerCase()));
-
-        if(estandares.length>0){
-            hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
-            hojaConsolidado.getCell(`B${rowOffset}`).value = 'Estándares';
-            hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true, size: 12 };
-            hojaConsolidado.getCell(`B${rowOffset}`).alignment = { horizontal: 'center' };
-            hojaConsolidado.getCell(`B${rowOffset}`).fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFD1D5DB'} };
-            rowOffset++;
-
-            hojaConsolidado.getRow(rowOffset).values = ['', 'Estandar', '', 'Total criterios', 'Cumple', 'No Cumple', 'Cumple parcial', 'No Aplica', 'Cumplimiento (%)'];
-            hojaConsolidado.getRow(rowOffset).font = { bold:true };
-            hojaConsolidado.getRow(rowOffset).alignment = { horizontal:'center' };
-            rowOffset++;
-
-            estandares.forEach(estandar => {
-                hojaConsolidado.addRow([
-                    '',
-                    safeValue(estandar.nombre),
-                    '',
-                    safeValue(estandar.totalCriterios,0),
-                    safeValue(estandar.cumple,0),
-                    safeValue(estandar.noCumple,0),
-                    safeValue(estandar.cumpleParcial,0),
-                    safeValue(estandar.noAplica,0),
-                    safeValue(estandar.cumplimiento,0)/100
-                ]);
-                hojaConsolidado.mergeCells(`B${rowOffset}:C${rowOffset}`);
-                const lastRow = hojaConsolidado.lastRow;
-                if(typeof lastRow.getCell(9).value === 'number') lastRow.getCell(9).numFmt='0.0%';
-                rowOffset++;
-            });
-            rowOffset++;
-        }
-
-        /** SERVICIOS */
-        const servicios = resultadoConsolidado.filter(c => c.tipo === "servicio");
-        servicios.sort((a,b) => safeValue(a.servicioDetalles?.nombre,'').toLowerCase().localeCompare(safeValue(b.servicioDetalles?.nombre,'').toLowerCase()));
-
-        if(servicios.length>0){
-            hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
-            hojaConsolidado.getCell(`B${rowOffset}`).value = 'Servicios';
-            hojaConsolidado.getCell(`B${rowOffset}`).font = { bold:true, size:12 };
-            hojaConsolidado.getCell(`B${rowOffset}`).fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFD1D5DB'} };
-            hojaConsolidado.getCell(`B${rowOffset}`).alignment = { horizontal:'center' };
-            rowOffset++;
-
-            hojaConsolidado.getRow(rowOffset).values = ['', 'Servicio', '', 'Total criterios', 'Cumple', 'No Cumple', 'Cumple parcial', 'No Aplica', 'Cumplimiento (%)'];
-            hojaConsolidado.getRow(rowOffset).font = { bold:true };
-            hojaConsolidado.getRow(rowOffset).alignment = { horizontal:'center' };
-            rowOffset++;
-
-            servicios.forEach(servicio => {
-                hojaConsolidado.addRow([
-                    '',
-                    safeValue(servicio.servicioDetalles?.nombre),
-                    '',
-                    safeValue(servicio.totalCriterios,0),
-                    safeValue(servicio.cumple,0),
-                    safeValue(servicio.noCumple,0),
-                    safeValue(servicio.cumpleParcial,0),
-                    safeValue(servicio.noAplica,0),
-                    safeValue(servicio.cumplimiento,0)/100
-                ]);
-                hojaConsolidado.mergeCells(`B${rowOffset}:C${rowOffset}`);
-                const lastRow = hojaConsolidado.lastRow;
-                if(typeof lastRow.getCell(9).value==='number') lastRow.getCell(9).numFmt='0.0%';
-                rowOffset++;
-            });
-            rowOffset++;
-        }
-
-        /** CRITERIOS DE EVALUACIÓN */
-        const {rows: rowsCriteriosAuditorias} = await pool.query(
-            `SELECT * FROM auditoria_criterio 
-             INNER JOIN criterios_evaluacion
-             ON auditoria_criterio.criterio_evaluacion_id = criterios_evaluacion.id
-             WHERE auditoria_criterio.auditoria_id = $1`, [auditoriaId]
-        );
-        const criterios = rowsCriteriosAuditorias || [];
-
-        for(const criterio of criterios){
-            let rowOffsetServicio = 3;
-            const hojaServicio = workbook.addWorksheet(safeSheetName(criterio.nombre));
-
-            hojaServicio.mergeCells('B2:F2');
-            hojaServicio.getCell('B2').value = safeValue(criterio.nombre);
-            hojaServicio.getCell('B2').font = { bold:true, size:14, color:{argb:'FFFFFF'} };
-            hojaServicio.getCell('B2').alignment = { horizontal:'center' };
-            hojaServicio.getCell('B2').fill = hojaServicio.getCell('E2').fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF4B5563'} };
-
-            hojaServicio.columns = [
-                {width:5},{width:20},{width:65},
-                {width:20},{width:22},{width:50}
-            ];
-
-            hojaServicio.autoFilter = { from:'D3', to:'E3' };
-            hojaServicio.getColumn(2).alignment = { vertical:'middle', horizontal:'center' };
-            hojaServicio.getColumn(3).alignment = { vertical:'middle', wrapText:true };
-            hojaServicio.getColumn(4).alignment = { vertical:'middle', horizontal:'center' };
-            hojaServicio.getColumn(5).alignment = { horizontal:'center', vertical:'middle' };
-            hojaServicio.getColumn(6).alignment = { wrapText:true, vertical:'middle' };
-
-            hojaServicio.getRow(rowOffsetServicio).values = ['', 'Ítem', 'Criterio de evaluación', 'Estandar', 'Estado', 'Observaciones'];
-            hojaServicio.getRow(rowOffsetServicio).font = { bold:true };
-            hojaServicio.getRow(rowOffsetServicio).alignment = { horizontal:'center' };
-            for(let col=2; col<=6; col++){
-                hojaServicio.getCell(rowOffsetServicio,col).fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFD1D5DB'} };
-            }
-            rowOffsetServicio++;
-
-            const {rows: resultadosItems} = await pool.query(
-                `SELECT * FROM resultados_items_evaluacion as rie
-                 INNER JOIN items_evaluacion as ie
-                 ON rie.item_id = ie.id
-                 WHERE rie.criterio_id = $1 AND rie.auditoria_id = $2`,
-                 [criterio.id, auditoriaId]
+        // ----------------------------
+        // ESTÁNDARES (ordenados)
+        // ----------------------------
+        const estandares = resultadoConsolidado
+            .filter((c) => c.tipo === "estandar")
+            .sort((a, b) =>
+                safeText(a.nombre, "").toLowerCase()
+                    .localeCompare(safeText(b.nombre, "").toLowerCase())
             );
 
-            const resultadoFiltrado = resultadosItems.filter(item => item.criterio_id);
-            const resultadosOrdenados = ordenarItems(resultadoFiltrado);
+        if (estandares.length > 0) {
+            hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
+            hojaConsolidado.getCell(`B${rowOffset}`).value = "Estándares";
+            hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true, size: 12 };
+            hojaConsolidado.getCell(`B${rowOffset}`).alignment = { horizontal: "center" };
+            hojaConsolidado.getCell(`B${rowOffset}`).fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFD1D5DB" },
+            };
+            rowOffset++;
 
-            for(const resultado of resultadosOrdenados){
+            hojaConsolidado.getRow(rowOffset).values = [
+                "",
+                "Estandar",
+                "",
+                "Total criterios",
+                "Cumple",
+                "No Cumple",
+                "Cumple parcial",
+                "No Aplica",
+                "Cumplimiento (%)",
+            ];
+            hojaConsolidado.getRow(rowOffset).font = { bold: true };
+            hojaConsolidado.getRow(rowOffset).alignment = { horizontal: "center" };
+            rowOffset++;
+
+            estandares.forEach((est) => {
+                hojaConsolidado.addRow([
+                    "",
+                    safeText(est.nombre),
+                    "",
+                    safeNumber(est.totalCriterios),
+                    safeNumber(est.cumple),
+                    safeNumber(est.noCumple),
+                    safeNumber(est.cumpleParcial),
+                    safeNumber(est.noAplica),
+                    safeNumber(est.cumplimiento) / 100,
+                ]);
+                hojaConsolidado.mergeCells(`B${rowOffset}:C${rowOffset}`);
+                const lastRow = hojaConsolidado.lastRow;
+                lastRow.getCell(9).numFmt = "0.0%";
+                rowOffset++;
+            });
+
+            rowOffset++;
+        }
+
+        // ----------------------------
+        // SERVICIOS (ordenados)
+        // ----------------------------
+        const servicios = resultadoConsolidado
+            .filter((c) => c.tipo === "servicio")
+            .sort((a, b) =>
+                safeText(a.servicioDetalles?.nombre, "").toLowerCase()
+                    .localeCompare(safeText(b.servicioDetalles?.nombre, "").toLowerCase())
+            );
+
+        if (servicios.length > 0) {
+            hojaConsolidado.mergeCells(`B${rowOffset}:I${rowOffset}`);
+            hojaConsolidado.getCell(`B${rowOffset}`).value = "Servicios";
+            hojaConsolidado.getCell(`B${rowOffset}`).font = { bold: true, size: 12 };
+            hojaConsolidado.getCell(`B${rowOffset}`).fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFD1D5DB" },
+            };
+            hojaConsolidado.getCell(`B${rowOffset}`).alignment = { horizontal: "center" };
+            rowOffset++;
+
+            hojaConsolidado.getRow(rowOffset).values = [
+                "",
+                "Servicio",
+                "",
+                "Total criterios",
+                "Cumple",
+                "No Cumple",
+                "Cumple parcial",
+                "No Aplica",
+                "Cumplimiento (%)",
+            ];
+            hojaConsolidado.getRow(rowOffset).font = { bold: true };
+            hojaConsolidado.getRow(rowOffset).alignment = { horizontal: "center" };
+            rowOffset++;
+
+            servicios.forEach((srv) => {
+                hojaConsolidado.addRow([
+                    "",
+                    safeText(srv.servicioDetalles?.nombre),
+                    "",
+                    safeNumber(srv.totalCriterios),
+                    safeNumber(srv.cumple),
+                    safeNumber(srv.noCumple),
+                    safeNumber(srv.cumpleParcial),
+                    safeNumber(srv.noAplica),
+                    safeNumber(srv.cumplimiento) / 100,
+                ]);
+                hojaConsolidado.mergeCells(`B${rowOffset}:C${rowOffset}`);
+                const lastRow = hojaConsolidado.lastRow;
+                lastRow.getCell(9).numFmt = "0.0%";
+                rowOffset++;
+            });
+
+            rowOffset++;
+        }
+
+        // ----------------------------
+        // CRITERIOS (items ya ordenados por SQL)
+        // ----------------------------
+        const { rows: rowsCriteriosAuditorias } = await pool.query(
+            `SELECT *
+             FROM auditoria_criterio 
+             INNER JOIN criterios_evaluacion
+             ON auditoria_criterio.criterio_evaluacion_id = criterios_evaluacion.id
+             WHERE auditoria_criterio.auditoria_id = $1`,
+            [auditoriaId]
+        );
+
+        const criterios = rowsCriteriosAuditorias || [];
+
+        for (const criterio of criterios) {
+            let rowOffsetServicio = 3;
+
+            const hojaServicio = workbook.addWorksheet(
+                safeSheetName(criterio.nombre)
+            );
+
+            hojaServicio.mergeCells("B2:F2");
+            hojaServicio.getCell("B2").value = safeText(criterio.nombre);
+            hojaServicio.getCell("B2").font = { bold: true, size: 14, color: { argb: "FFFFFF" } };
+            hojaServicio.getCell("B2").alignment = { horizontal: "center" };
+            hojaServicio.getCell("B2").fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FF4B5563" },
+            };
+
+            hojaServicio.columns = [
+                { width: 5 },
+                { width: 20 },
+                { width: 65 },
+                { width: 20 },
+                { width: 22 },
+                { width: 50 },
+            ];
+
+            hojaServicio.autoFilter = { from: "D3", to: "E3" };
+
+            hojaServicio.getRow(rowOffsetServicio).values = [
+                "",
+                "Ítem",
+                "Criterio de evaluación",
+                "Estandar",
+                "Estado",
+                "Observaciones",
+            ];
+            hojaServicio.getRow(rowOffsetServicio).font = { bold: true };
+            hojaServicio.getRow(rowOffsetServicio).alignment = {
+                horizontal: "center",
+            };
+
+            rowOffsetServicio++;
+
+            const { rows: resultadosItems } = await pool.query(
+                `SELECT *
+                 FROM resultados_items_evaluacion AS rie
+                 INNER JOIN items_evaluacion AS ie
+                 ON rie.item_id = ie.id
+                 WHERE rie.criterio_id = $1 AND rie.auditoria_id = $2
+                 ORDER BY string_to_array(item, '.')::int[]`,
+                [criterio.id, auditoriaId]
+            );
+
+            for (const resultado of resultadosItems) {
                 const descripcionObj = await markdownHtmlToRichText(resultado.descripcion);
                 const observacionesObj = await markdownHtmlToRichText(resultado.observaciones);
 
                 hojaServicio.addRow([
-                    '',
-                    safeValue(resultado.item),
+                    "",
+                    safeText(resultado.item),
                     safeRichText(descripcionObj),
-                    safeValue(nombresLargosEstandares[resultado.estandar],'N/A'),
-                    safeValue(nombresLargosResultados[resultado.resultado],''),
-                    safeRichText(observacionesObj)
+                    safeText(nombresLargosEstandares[resultado.estandar], "N/A"),
+                    safeText(nombresLargosResultados[resultado.resultado], ""),
+                    safeRichText(observacionesObj),
                 ]);
             }
         }
 
-        /** FIRMAS */
+        // ----------------------------
+        // FIRMAS
+        // ----------------------------
         let colStart = 1;
-        const {rows: rowsFirmas} = await pool.query(
-            `SELECT * FROM auditoria_firma 
+        const { rows: rowsFirmas } = await pool.query(
+            `SELECT *
+             FROM auditoria_firma
              INNER JOIN firmas
              ON auditoria_firma.firma_id = firmas.id
-             WHERE auditoria_firma.auditoria_id = $1`, [auditoriaId]
+             WHERE auditoria_firma.auditoria_id = $1`,
+            [auditoriaId]
         );
-        const firmas = rowsFirmas || [];
-        let rutaFirmaDefault = path.join(__dirname, `../public/img/image-default.png`);
-        [10,11,12,13,14].forEach(c=>hojaConsolidado.getColumn(c).width=20);
 
-        firmas.forEach((firma,index)=>{
+        const firmas = rowsFirmas || [];
+        const rutaFirmaDefault = path.join(__dirname, "../public/img/image-default.png");
+
+        firmas.forEach((firma) => {
             const pathFile = path.join(__dirname, `../uploads/firmas/${firma.archivo}`);
             const rutaFirma = checkFileExists(pathFile) ? pathFile : rutaFirmaDefault;
 
-            const imageId = workbook.addImage({ filename: rutaFirma, extension:'png' });
-            hojaConsolidado.addImage(imageId, { tl:{col:colStart,row:rowOffset}, br:{col:colStart+1,row:rowOffset+4} });
+            const imageId = workbook.addImage({
+                filename: rutaFirma,
+                extension: "png",
+            });
 
-            hojaConsolidado.getCell(rowOffset+5,colStart+1).value = safeValue(firma.nombresCompletos,'');
-            hojaConsolidado.getCell(rowOffset+5,colStart+1).font = { bold:true };
-            hojaConsolidado.getCell(rowOffset+5,colStart+1).alignment = { vertical:'top', wrapText:true };
+            hojaConsolidado.addImage(imageId, {
+                tl: { col: colStart, row: rowOffset },
+                br: { col: colStart + 1, row: rowOffset + 4 },
+            });
 
-            hojaConsolidado.getCell(rowOffset+6,colStart+1).value = safeValue(firma.rol,'').replace(/\b\w/g,c=>c.toUpperCase());
-            hojaConsolidado.getCell(rowOffset+6,colStart+1).alignment = { horizontal:'left' };
+            hojaConsolidado.getCell(rowOffset + 5, colStart + 1).value = safeText(
+                firma.nombresCompletos
+            );
+            hojaConsolidado.getCell(rowOffset + 5, colStart + 1).font = { bold: true };
+            hojaConsolidado.getCell(rowOffset + 5, colStart + 1).alignment = {
+                vertical: "top",
+                wrapText: true,
+            };
+
+            hojaConsolidado.getCell(rowOffset + 6, colStart + 1).value = safeText(
+                firma.rol
+            ).replace(/\b\w/g, (c) => c.toUpperCase());
+
             colStart++;
         });
 
-        res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition','attachment; filename=ReporteCompleto.xlsx');
+        // ----------------------------
+        // RESPUESTA
+        // ----------------------------
+        res.setHeader(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        res.setHeader("Content-Disposition", "attachment; filename=ReporteCompleto.xlsx");
+
         await workbook.xlsx.write(res);
         res.status(200).end();
-
-    } catch(error){
+    } catch (error) {
         next(error);
     }
-}
-
+};
 
 
 exports.obtenerConsolidadoAuditoria = async (req, res, next) => {
