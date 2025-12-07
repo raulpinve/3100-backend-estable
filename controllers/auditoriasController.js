@@ -508,7 +508,7 @@ exports.descargarConsolidado = async (req, res, next) => {
             if(typeof value === 'string') return value;
             return value.toString();
         };
-        
+
         const safeRichText = (obj) => {
             if (!obj) return '';
 
@@ -841,6 +841,7 @@ exports.agregarFirmaUsuarioRegistrado = async (req, res, next) => {
             "SELECT * FROM firmas WHERE usuario_id = $1",
             [usuarioId]
         );
+        console.log(firmas)
         if (firmas.length === 0) {
             throwNotFoundError("El usuario no tiene una firma registrada.");
         }

@@ -44,7 +44,7 @@ const obtenerUsuarios = async (req, res, next) => {
     const offset = (paginaInt - 1) * tamanoPaginaInt;
 
     try {
-        let filtros = `estado != 'eliminado' AND owner = $1`;
+        let filtros = `(owner = $1 OR id = $1) AND estado != 'eliminado'`;
         let valores = [ownerId];
         let contador = 2;
 
