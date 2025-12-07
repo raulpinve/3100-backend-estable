@@ -718,7 +718,7 @@ exports.descargarConsolidado = async (req, res, next) => {
             const imageId = workbook.addImage({ filename: rutaFirma, extension:'png' });
             hojaConsolidado.addImage(imageId, { tl:{col:colStart,row:rowOffset}, br:{col:colStart+1,row:rowOffset+4} });
 
-            hojaConsolidado.getCell(rowOffset+5,colStart+1).value = safeValue(firma._completos,'');
+            hojaConsolidado.getCell(rowOffset+5,colStart+1).value = safeValue(firma.nombres_completos,'');
             hojaConsolidado.getCell(rowOffset+5,colStart+1).font = { bold:true };
             hojaConsolidado.getCell(rowOffset+5,colStart+1).alignment = { vertical:'top', wrapText:true };
 
