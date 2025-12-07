@@ -6,6 +6,14 @@ const ExcelJS = require('exceljs');
 const path = require("path");
 const fs = require("fs");
 const { generarTokenFirma } = require("../utils/hash");
+const EXCEL_COLORS = {
+    yellow: 'FFFFF3B0', // amarillo claro
+    red:    'FFFECACA', // rojo claro
+    gray:   'FFE5E7EB', // gray-200
+    blue:   'FFBFDBFE', // azul claro
+    green:  'FFD1FAE5'  // verde claro
+};
+
 
 function safeSheetName(name) {
     return name.replace(/[:\/\\?\*\[\]]/g, '').substring(0, 31);
@@ -500,9 +508,16 @@ exports.descargarConsolidado = async (req, res, next) => {
             if(typeof value === 'string') return value;
             return value.toString();
         };
+        
         const safeRichText = (obj) => {
-            if(!obj) return '';
-            if(Array.isArray(obj?.richText)) return obj.richText.map(r => r.text).join('');
+            if (!obj) return '';
+
+            // Si ya es richText, devolverlo tal cual
+            if (Array.isArray(obj?.richText)) {
+                return { richText: obj.richText };
+            }
+
+            // Si no es richText, convertir a texto simple
             return safeValue(obj);
         };
 
@@ -526,9 +541,9 @@ exports.descargarConsolidado = async (req, res, next) => {
 
         /** ESTÁNDARES */
         const estandares = resultadoConsolidado.filter(c => c.tipo === "estandar");
-        estandares.sort((a,b) => {
-            const aNombre = (a.nombre ?? '').toString().toLowerCase();
-            const bNombre = (b.nombre ?? '').toString().toLowerCase();
+        estandares.sort((a, b) => {
+            const aNombre = (a?.nombre ?? '').toString().toLowerCase();
+            const bNombre = (b?.nombre ?? '').toString().toLowerCase();
             return aNombre.localeCompare(bNombre);
         });
 
@@ -569,8 +584,8 @@ exports.descargarConsolidado = async (req, res, next) => {
         /** SERVICIOS */
         const servicios = resultadoConsolidado.filter(c => c.tipo === "servicio");
         servicios.sort((a, b) => {
-            const aNombre = (a.servicioDetalles?.nombre ?? '').toString().toLowerCase();
-            const bNombre = (b.servicioDetalles?.nombre ?? '').toString().toLowerCase();
+            const aNombre = (a?.servicioDetalles?.nombre ?? '').toString().toLowerCase();
+            const bNombre = (b?.servicioDetalles?.nombre ?? '').toString().toLowerCase();
             return aNombre.localeCompare(bNombre);
         });
 
@@ -656,18 +671,31 @@ exports.descargarConsolidado = async (req, res, next) => {
                  [criterio.id, auditoriaId]
             );
 
-            for(const resultado of resultadosItems){
+            for (const resultado of resultadosItems) {
                 const descripcionObj = await markdownHtmlToRichText(resultado.descripcion);
                 const observacionesObj = await markdownHtmlToRichText(resultado.observaciones);
 
-                hojaServicio.addRow([
+                const row = hojaServicio.addRow([
                     '',
-                    safeValue(resultado.item),
+                    safeValue(resultado.mostrar_item ? resultado.item : ""),
                     safeRichText(descripcionObj),
-                    safeValue(nombresLargosEstandares[resultado.estandar],'N/A'),
-                    safeValue(nombresLargosResultados[resultado.resultado],''), 
+                    safeValue(nombresLargosEstandares[resultado.estandar], 'N/A'),
+                    safeValue(nombresLargosResultados[resultado.resultado], ''),
                     safeRichText(observacionesObj)
                 ]);
+
+                //  Si highlight_color existe y está mapeado
+                const colorARGB = EXCEL_COLORS[resultado.highlight_color];
+
+                if (colorARGB) {
+                    row.eachCell((cell) => {
+                        cell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: colorARGB }
+                        };
+                    });
+                }
             }
         }
 
@@ -690,7 +718,7 @@ exports.descargarConsolidado = async (req, res, next) => {
             const imageId = workbook.addImage({ filename: rutaFirma, extension:'png' });
             hojaConsolidado.addImage(imageId, { tl:{col:colStart,row:rowOffset}, br:{col:colStart+1,row:rowOffset+4} });
 
-            hojaConsolidado.getCell(rowOffset+5,colStart+1).value = safeValue(firma.nombresCompletos,'');
+            hojaConsolidado.getCell(rowOffset+5,colStart+1).value = safeValue(firma._completos,'');
             hojaConsolidado.getCell(rowOffset+5,colStart+1).font = { bold:true };
             hojaConsolidado.getCell(rowOffset+5,colStart+1).alignment = { vertical:'top', wrapText:true };
 
