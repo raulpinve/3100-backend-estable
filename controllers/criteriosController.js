@@ -36,33 +36,35 @@ exports.obtenerCriterios = async (req, res, next) => {
         const grupoId = req.params.grupoId;
         const pagina = parseInt(req.query.pagina) || 1;
         const limite = parseInt(req.query.limite) || 20;
+        const consulta = req.query.consulta || "";
         const offset = (pagina - 1) * limite;
 
         const criteriosQuery = await pool.query(`
-            SELECT c.*, g.id as grupoId, g.nombre AS grupo_nombre
+            SELECT c.*, g.id as "grupoId", g.nombre AS grupo_nombre
             FROM criterios_evaluacion c
             LEFT JOIN grupos_autoevaluacion g ON c.grupo_id = g.id
             WHERE g.id = $1
+              AND c.nombre ILIKE $2
             ORDER BY c.id ASC
-            LIMIT $2 OFFSET $3
-        `, [ grupoId, limite, offset ]);
+            LIMIT $3 OFFSET $4
+        `, [ grupoId, `%${consulta}%`, limite, offset ]);
 
-        const totalQuery = await pool.query(
-            `SELECT COUNT(*) FROM criterios_evaluacion WHERE grupo_id = $1`, 
-            [grupoId]
-        );
+        const totalQuery = await pool.query(`
+            SELECT COUNT(*) 
+            FROM criterios_evaluacion 
+            WHERE grupo_id = $1
+              AND nombre ILIKE $2
+        `, [ grupoId, `%${consulta}%` ]);
         
         const totalRegistros = parseInt(totalQuery.rows[0].count);
         const totalPaginas = Math.ceil(totalRegistros / limite);
 
-        const criterios = criteriosQuery.rows.map(criterio => {
-            return {
-                id: criterio.id, 
-                nombre: criterio.nombre,
-                tipo: criterio.tipo,
-                grupoId: criterio.grupoId
-            }
-        })
+        const criterios = criteriosQuery.rows.map(criterio => ({
+            id: criterio.id, 
+            nombre: criterio.nombre,
+            tipo: criterio.tipo,
+            grupoId: criterio.grupoId
+        }));
 
         return res.status(200).json({
             statusCode: 200,

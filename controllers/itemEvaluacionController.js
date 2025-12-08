@@ -58,28 +58,35 @@ const obtenerItems = async (req, res, next) => {
         const pagina = parseInt(req.query.pagina) || 1;
         const limite = parseInt(req.query.limite) || 20;
         const offset = (pagina - 1) * limite;
+        const consulta = req.query.consulta || ""; // <-- añadido
         const { criterioId } = req.params;
 
         const itemsQuery = await pool.query(`
             SELECT *
             FROM items_evaluacion
             WHERE criterio_id = $1
+              AND descripcion ILIKE $2
             ORDER BY string_to_array(item, '.')::int[]
-            LIMIT $2 OFFSET $3
-        `, [criterioId, limite, offset]);
+            LIMIT $3 OFFSET $4
+        `, [
+            criterioId,
+            `%${consulta}%`, 
+            limite,
+            offset
+        ]);
 
-        const totalQuery = await pool.query(
-            `SELECT COUNT(*) FROM items_evaluacion WHERE criterio_id = $1`,
-            [criterioId]
-        );
+        const totalQuery = await pool.query(`
+            SELECT COUNT(*)
+            FROM items_evaluacion
+            WHERE criterio_id = $1
+              AND descripcion ILIKE $2
+        `, [
+            criterioId,
+            `%${consulta}%`
+        ]);
+
         const totalRegistros = parseInt(totalQuery.rows[0].count);
         const totalPaginas = Math.ceil(totalRegistros / limite);
-
-        console.log('Items encontrados:', itemsQuery.rows.length);
-        console.log('Total registros:', totalRegistros);
-        console.log('Total páginas:', totalPaginas);
-        console.log('Primer item:', itemsQuery.rows[0]?.item);
-
         const items = itemsQuery.rows;
 
         return res.status(200).json({
