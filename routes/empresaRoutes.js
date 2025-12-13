@@ -4,6 +4,7 @@ const empresasController = require("../controllers/empresasController");
 const { throwForbiddenError } = require('../errors/throwHTTPErrors');
 const obtenerEmpresaId = require('../middlewares/obtenerEmpresa');
 const verificarPermisos = require('../middlewares/verificarPermisos');
+const { validarPlan } = require('../controllers/validarPlan');
 
 // Crear empresa
 router.post("/", 
@@ -20,7 +21,9 @@ router.post("/",
         } catch (error) {
             next(error)        
         }
-    }, empresasController.crearEmpresa
+    }, 
+    validarPlan("empresa"),
+    empresasController.crearEmpresa
 );
 
 // Obtener todas las empresas

@@ -60,8 +60,6 @@ const obtenerResultadosItems = async (req, res, next) => {
                 `%${resultadoFiltro}%`
             ]
         );
-
-		
         const totalRegistros = parseInt(totalQuery.rows[0].count);
         const totalPaginas = Math.ceil(totalRegistros / limite);
 

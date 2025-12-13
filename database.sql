@@ -135,3 +135,28 @@ CREATE TABLE auditores_auditoria (
   auditor_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
   PRIMARY KEY (auditoria_id, auditor_id)
 );
+
+-- 13. Suscripciones
+CREATE TABLE suscripciones (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    plan TEXT NOT NULL CHECK (plan IN ('basico', 'estandar', 'premium')),
+    estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'inactivo', 'cancelado')),
+    fecha_inicio TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_fin TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 14. Pagos wompi
+CREATE TABLE pagos_wompi (
+    id SERIAL PRIMARY KEY,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    plan VARCHAR(50) NOT NULL,
+    referencia VARCHAR(200) NOT NULL UNIQUE,
+    monto INT NOT NULL,
+    estado VARCHAR(50) NOT NULL DEFAULT 'pendiente',
+    tipo_transaccion VARCHAR(50) DEFAULT 'suscripcion',
+    periodo INT NOT NULL,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    actualizado_en TIMESTAMPTZ DEFAULT NOW()
+);

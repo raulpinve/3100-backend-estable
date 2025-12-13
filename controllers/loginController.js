@@ -3,6 +3,7 @@ const { throwUnauthorizedError, throwNotFoundError } = require("../errors/throwH
 const { pool } = require("../initDB");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const { snakeToCamel } = require("../utils/utils");
 
 const validarToken = async (req, res, next) => {
     try {
@@ -142,13 +143,48 @@ const login = async (req, res, next) => {
     }
 };
 
-const obtenerUsuario = (req, res, next) => {
+const obtenerUsuario = async (req, res, next) => {
     try {
-        const usuario = req.usuario;
+        // Convierte usuario a camelCase
+        const usuario = snakeToCamel(req.usuario);
+
+        const usuarioId = usuario.id;
+
+        // Traer la suscripción más reciente
+        const { rows: suscripcionRows } = await pool.query(
+            `SELECT plan, fecha_fin, estado
+             FROM suscripciones
+             WHERE usuario_id = $1
+             ORDER BY fecha_inicio DESC
+             LIMIT 1`,
+            [usuarioId]
+        );
+
+        // Convertir la suscripción a camelCase si existe
+        const suscripcion = suscripcionRows[0] ? snakeToCamel(suscripcionRows[0]) : null;
+
+        // Determinar modo lectura
+        let modoLectura = false;
+
+        if (!suscripcion) {
+            modoLectura = true; // sin plan
+        } else {
+            const ahora = new Date();
+            const vence = new Date(suscripcion.fechaFin);
+
+            if (vence < ahora || suscripcion.estado === "cancelado" || suscripcion.estado === "inactivo") {
+                modoLectura = true; // vencido o inactivo
+            }
+        }
+
         return res.json({
             statusCode: 200,
             status: "success",
-            data: usuario
+            data: {
+                usuario,
+                suscripcion,
+                modoLectura
+            }
         });
     } catch (error) {
         next(error);

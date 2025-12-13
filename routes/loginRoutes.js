@@ -8,8 +8,8 @@ router.post("/signup", validateSignup, loginController.signUp);
 // Iniciar sesión 
 router.post("/login", validateLogin, loginController.login);
 
-// Validar token
-router.get('/validar-token', loginController.validarToken, loginController.obtenerUsuario)
+// me
+router.get('/me', loginController.validarToken, loginController.obtenerUsuario)
 
 // Verificar email
 router.get('/:token/verificar-email', loginController.verificarEmail)

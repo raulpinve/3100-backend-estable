@@ -1,7 +1,7 @@
 const { throwNotFoundError, throwBadRequestError } = require("../errors/throwHTTPErrors");
 const { pool } = require("../initDB");
 const { validateMimeTypeFile, createFolder, uploadFile, validateSizeFile, checkFileExists } = require("../utils/files");
-const { snakeToCamel, calcularPromedioCumplimiento, calcularPromedioPonderado, ordenarItems } = require("../utils/utils");
+const { snakeToCamel } = require("../utils/utils");
 const ExcelJS = require('exceljs');
 const path = require("path");
 const fs = require("fs");
@@ -13,11 +13,6 @@ const EXCEL_COLORS = {
     blue:   'FFBFDBFE', // azul claro
     green:  'FFD1FAE5'  // verde claro
 };
-
-
-function safeSheetName(name) {
-    return name.replace(/[:\/\\?\*\[\]]/g, '').substring(0, 31);
-}
 
 // Convierte Markdown → richText para ExcelJS
 async function markdownHtmlToRichText(content) {

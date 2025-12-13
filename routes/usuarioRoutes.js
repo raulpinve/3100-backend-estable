@@ -4,11 +4,13 @@ const usuarioController = require("../controllers/usuarioController");
 const { validarActualizarUsuario, validarCrearUsuario } = require("../validators/usuarioValidators");
 const verificarPermisosAdministradores = require("../middlewares/verificarPermisosAdministradores");
 const { validarUsuarioId } = require("../validators/perfilValidators");
+const { validarPlan } = require("../controllers/validarPlan");
 
 // Crear usuario 
 router.post("/",
   validarCrearUsuario,
   verificarPermisosAdministradores,
+  validarPlan("auditor"),
   usuarioController.crearUsuario
 );
 

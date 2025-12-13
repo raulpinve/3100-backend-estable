@@ -7,13 +7,12 @@ const path = require("path");
 
 app.use(express.json());
 app.use(cors());
-app.get('/', (req, res) => {
-    res.send('Hola mundo desde 3100!');
-});
 
 app.use(express.static(path.join(__dirname, 'public')));
-const { validarToken } = require("./controllers/loginController");
 const handleErrorResponse = require('./errors/handleErrorResponse');
+const { validarToken } = require("./controllers/loginController");
+const validarSuscripcion = require("./middlewares/validarSuscripcion");
+const bloquearEdicionSiLectura = require("./middlewares/bloquearEdicionSiLectura");
 
 // Rutas
 const itemsEvaluacionRoutes = require("./routes/itemsEvaluacionRoutes");
@@ -28,20 +27,37 @@ const firmaRoutes = require("./routes/firmasRoutes");
 const gruposRoutes = require("./routes/grupoRoutes");
 const loginRoutes = require("./routes/loginRoutes");
 const imageRoutes = require("./routes/imageRoutes");
+const pagosRoutes = require("./routes/pagosRoutes");
+const pagosController = require("./controllers/pagosController");
 
-app.use("/items-evaluacion", validarToken, itemsEvaluacionRoutes);
-app.use("/resultados-items", validarToken, resultadosItemsRoutes);
-app.use("/auditorias", validarToken, auditoriasRoutes);
-app.use("/usuario-privilegios", validarToken, usuarioEmpresaRoutes);
-app.use("/criterios", validarToken, criterioRoutes);
-app.use("/empresas", validarToken, empresaRoutes);
-app.use("/grupos", validarToken, gruposRoutes);
-app.use("/perfiles", validarToken, perfilRoutes);
-app.use("/usuarios", validarToken, usuarioRoutes);
-app.use("/firmas", validarToken, firmaRoutes);
+// 1. Rutas públicas
+app.use("/auth", loginRoutes);
+app.use("/wompi-webhook", pagosController.webhook);
+
+app.use(validarToken);
+app.use("/pagos", pagosRoutes);
+
+// 3. Validar suscripciones a las demás rutas
+app.use(validarSuscripcion);
+app.use(bloquearEdicionSiLectura);
+
+// 3. Rutas privadas
+app.use("/items-evaluacion", itemsEvaluacionRoutes);
+app.use("/resultados-items", resultadosItemsRoutes);
+app.use("/auditorias", auditoriasRoutes);
+app.use("/usuario-privilegios", usuarioEmpresaRoutes);
+app.use("/criterios", criterioRoutes);
+app.use("/empresas", empresaRoutes);
+app.use("/grupos", gruposRoutes);
+app.use("/perfiles", perfilRoutes);
+app.use("/usuarios", usuarioRoutes);
+app.use("/firmas", firmaRoutes);
 app.use("/images", imageRoutes);
-app.use(loginRoutes);
+
+// 4. Manejo de errores
 app.use(handleErrorResponse);
+
+app.get('/', (req, res) => { res.send(`Hola mundo desde ${PORT}!`) });
 
 app.listen(PORT, () => {
     console.log(`Server listening on http://localhost:${PORT}`);
