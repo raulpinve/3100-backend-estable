@@ -36,7 +36,6 @@ app.use("/wompi-webhook", pagosController.webhook);
 
 app.use(validarToken);
 app.use("/pagos", pagosRoutes);
-app.use("/perfiles", perfilRoutes);
 
 // 3. Validar suscripciones a las demás rutas
 app.use(validarSuscripcion);
@@ -53,6 +52,7 @@ app.use("/grupos", gruposRoutes);
 app.use("/usuarios", usuarioRoutes);
 app.use("/firmas", firmaRoutes);
 app.use("/images", imageRoutes);
+app.use("/perfiles", perfilRoutes);
 
 // 4. Manejo de errores
 app.use(handleErrorResponse);
