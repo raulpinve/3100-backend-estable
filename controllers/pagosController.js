@@ -23,6 +23,12 @@ const PLANES = {
   }
 };
 
+const nivelPlanes = {
+    "basico": 1,
+    "estandar": 2, 
+    "premium": 3    
+}
+
 // Función para crear el hash de la firma de integridad
 async function hashCadenaIntegridad(cadenaConcatenada) {
     const encondedText = new TextEncoder().encode(cadenaConcatenada);
@@ -71,8 +77,6 @@ async function obtenerReferenciaPago(plan, periodo) {
         hashHex
     };
 }
-
-
 
 function obtenerFechasPeriodo(meses) {
     const today = new Date();
@@ -212,11 +216,27 @@ exports.webhook = async function (req, res, next) {
 
             const { fechaInicio, fechaFin } = obtenerFechasPeriodo(periodo);
 
+
+            // Verificar si el usuario hizo downgrade
+            const {rows: ultimaSuscripcion} = await client.query(
+                `SELECT id, plan FROM suscripciones WHERE usuario_id = $1`, 
+                [usuarioId]
+            )
+            let drowngrade = false;
+            if(ultimaSuscripcion.length > 0){
+                const planActual = ultimaSuscripcion[0].plan;
+                const nuevoPlan = pago.plan;
+
+                if(nivelPlanes[nuevoPlan] < nivelPlanes[planActual]){
+                    drowngrade = true;
+                }
+            }
+
             // Crear nueva suscripción
             await client.query(
                 `INSERT INTO suscripciones 
-                (usuario_id, plan, estado, fecha_inicio, fecha_fin)
-                VALUES ($1, $2, 'activo', $3, $4)`,
+                (usuario_id, plan, estado, fecha_inicio, fecha_fin, drowngrade)
+                VALUES ($1, $2, 'activo', $3, $4, $5)`,
                 [usuarioId, plan, fechaInicio, fechaFin]
             );
         } 

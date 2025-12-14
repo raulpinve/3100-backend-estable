@@ -26,7 +26,7 @@ CREATE TABLE usuarios (
 CREATE TABLE empresas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre TEXT NOT NULL,
-    estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'inactivo')),
+    estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'bloqueado', 'eliminado')),
     owner UUID REFERENCES usuarios(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -142,6 +142,7 @@ CREATE TABLE suscripciones (
     usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     plan TEXT NOT NULL CHECK (plan IN ('basico', 'estandar', 'premium')),
     estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'inactivo', 'cancelado')),
+    downgrade BOOLEAN NOT NULL DEFAULT false,
     fecha_inicio TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_fin TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
