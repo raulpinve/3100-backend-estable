@@ -21,7 +21,7 @@ module.exports = function(resourceTable, resourceEmpresaIdField) {
 
       // 2️⃣ Obtener la empresa a partir del recurso
       const { rows: recurso } = await pool.query(
-        `SELECT ${resourceEmpresaIdField} as empresa_id FROM ${resourceTable} WHERE id = $1`,
+        `SELECT empresa_id FROM ${resourceTable} WHERE id = $1`,
         [req.params.id] // suponiendo que el recurso tiene id en params
       );
 

@@ -5,6 +5,10 @@ const { validarActualizarUsuario, validarCrearUsuario } = require("../validators
 const verificarPermisosAdministradores = require("../middlewares/verificarPermisosAdministradores");
 const { validarUsuarioId } = require("../validators/perfilValidators");
 const { validarPlan } = require("../controllers/validarPlan");
+const modoSoloLectura = require("../middlewares/modoSoloLectura");
+
+// Aplica el modo solo lectura
+router.use(modoSoloLectura);
 
 // Crear usuario 
 router.post("/",

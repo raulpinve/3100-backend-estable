@@ -12,7 +12,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const handleErrorResponse = require('./errors/handleErrorResponse');
 const { validarToken } = require("./controllers/loginController");
 const validarSuscripcion = require("./middlewares/validarSuscripcion");
-const bloquearEdicionSiLectura = require("./middlewares/bloquearEdicionSiLectura");
 
 // Rutas
 const itemsEvaluacionRoutes = require("./routes/itemsEvaluacionRoutes");
@@ -29,17 +28,25 @@ const loginRoutes = require("./routes/loginRoutes");
 const imageRoutes = require("./routes/imageRoutes");
 const pagosRoutes = require("./routes/pagosRoutes");
 const pagosController = require("./controllers/pagosController");
+const validarUsuarioActivo = require('./middlewares/validarUsuarioActivo');
 
 // 1. Rutas públicas
 app.use("/auth", loginRoutes);
 app.use("/wompi-webhook", pagosController.webhook);
+app.use("/images", imageRoutes);
 
 app.use(validarToken);
 app.use("/pagos", pagosRoutes);
+app.use("/perfiles", perfilRoutes);
+app.use("/usuarios", usuarioRoutes);
 
-// 3. Validar suscripciones a las demás rutas
-app.use(validarSuscripcion);
-app.use(bloquearEdicionSiLectura);
+// 2. Validar suscripciones a las demás rutas
+/**
+ * Activa modo SOLO LECTURA para suscripciones expiradas
+ * y usuarios bloqueados
+*/
+app.use(validarSuscripcion); 
+app.use(validarUsuarioActivo);
 
 // 3. Rutas privadas
 app.use("/items-evaluacion", itemsEvaluacionRoutes);
@@ -49,16 +56,13 @@ app.use("/usuario-privilegios", usuarioEmpresaRoutes);
 app.use("/criterios", criterioRoutes);
 app.use("/empresas", empresaRoutes);
 app.use("/grupos", gruposRoutes);
-app.use("/usuarios", usuarioRoutes);
 app.use("/firmas", firmaRoutes);
-app.use("/images", imageRoutes);
-app.use("/perfiles", perfilRoutes);
 
 // 4. Manejo de errores
 app.use(handleErrorResponse);
 
+// 5. Correr servidor
 app.get('/', (req, res) => { res.send(`Hola mundo desde ${PORT}!`) });
-
 app.listen(PORT, () => {
     console.log(`Server listening on http://localhost:${PORT}`);
 });

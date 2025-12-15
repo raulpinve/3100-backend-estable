@@ -53,17 +53,36 @@ const validarEditarAuditoria = [
 
 const validarAuditoriaId = async (req, res, next) => {
     try {
-        const { auditoriaId } = req.params;
-        const id = parseInt(auditoriaId);
+        const id = Number(req.params.auditoriaId);
 
-        if (isNaN(id)) {
+        if (!Number.isInteger(id)) {
             throwNotFoundError("El ID de auditoría no es válido.");
         }
 
-        const result = await pool.query("SELECT id FROM auditorias WHERE id = $1", [id]);
-        if (result.rowCount === 0) {
+        const { rows } = await pool.query(`
+            SELECT 
+                a.id AS auditoria_id,
+                e.id AS empresa_id,
+                e.estado,
+                e.owner
+            FROM auditorias a
+            JOIN empresas e ON e.id = a.empresa_id
+            WHERE a.id = $1
+        `, [id]);
+
+        if (!rows.length) {
             throwNotFoundError("Auditoría no existe.");
         }
+        req.auditoria = {
+            id: rows[0].auditoria_id
+        };
+
+        req.empresa = {
+            id: rows[0].empresa_id,
+            estado: rows[0].estado,
+            owner: rows[0].owner
+        };
+
         next();
     } catch (error) {
         next(error);

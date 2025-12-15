@@ -10,8 +10,7 @@ const permisosPorRol = {
 const verificarPermisos = (accion) => async (req, res, next) => {
     try {
         const { id: usuarioId } = req.usuario;
-        const empresaId = req.empresaId;
-
+        const {id: empresaId} = req.empresa;
         if (!empresaId) {
             throwForbiddenError("No estás autorizado para realizar esta acción.");
         }

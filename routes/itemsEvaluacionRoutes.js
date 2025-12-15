@@ -3,7 +3,11 @@ const express = require('express');
 const { validarCrearItem, validarItemId, validarActualizarItem } = require('../validators/itemEvaluacionValidators');
 const { validarCriterioId } = require('../validators/criteriosValidators');
 const verificarPermisosEstandares = require("../middlewares/verificarPermisosEstandares");
+const modoSoloLectura = require('../middlewares/modoSoloLectura');
 const router = express.Router();
+
+// Aplica el modo solo lectura
+router.use(modoSoloLectura);
 
 // Crear item
 router.post('/', 

@@ -3,6 +3,10 @@ const express = require('express');
 const { validarCrearGrupo, validarGrupoId, validarActualizarGrupo } = require('../validators/gruposValidators');
 const router = express.Router();
 const verificarPermisosEstandares = require("../middlewares/verificarPermisosEstandares");
+const modoSoloLectura = require('../middlewares/modoSoloLectura');
+
+// Aplica el modo solo lectura
+router.use(modoSoloLectura);
 
 // Crear grupo
 router.post('/', 

@@ -1,59 +1,44 @@
 const { pool } = require("../initDB");
 
-  module.exports = async function validarSuscripcion(req, res, next) {
+module.exports = async function validarSuscripcion(req, res, next) {
     try {
       const adminId = req.usuario.owner || req.usuario.id;
 
-      // Obtener la suscripción activa más reciente que aún no haya vencido
+      // Valor por defecto: modo lectura
+      req.modoLectura = true;
+
+      // Buscar la suscripción más reciente
       const { rows } = await pool.query(
-        `SELECT plan, fecha_fin, estado
-        FROM suscripciones
-        WHERE usuario_id = $1
-          AND estado = 'activo'
-          AND fecha_fin >= NOW()
-        ORDER BY fecha_fin DESC
-        LIMIT 1`,
+        `SELECT estado, fecha_fin
+          FROM suscripciones
+          WHERE usuario_id = $1 AND estado = 'activo'
+          ORDER BY fecha_inicio DESC
+          LIMIT 1`,
         [adminId]
       );
 
-      // Si no hay suscripción vigente → modo lectura
+      // No hay suscripción → lectura
       if (!rows.length) {
-        req.modoLectura = true;
         return next();
       }
 
-      const { fecha_fin, estado } = rows[0];
+      const { estado, fecha_fin } = rows[0];
       const ahora = new Date();
       const vence = new Date(fecha_fin);
 
-      // Si venció o está cancelada/inactiva → modo lectura
-      if (vence < ahora || estado === "cancelado" || estado === "inactivo") {
-        req.modoLectura = true;
-
-        // Bloquear empresas activas solo si realmente están activas
-        await pool.query(
-          `UPDATE empresas
-          SET estado = 'inactivo'
-          WHERE owner = $1 AND estado = 'activo'`,
-          [adminId]
-        );
-
-        // Bloquear auditores activos solo si su estado es activo
-        await pool.query(
-          `UPDATE usuarios
-          SET estado = 'bloqueado'
-          WHERE owner = $1 AND rol = 'usuario' AND estado = 'activo'`,
-          [adminId]
-        );
-
+      // Suscripción no activa o vencida → lectura
+      if (
+        estado !== "activo" ||
+        vence < ahora
+      ) {
         return next();
       }
 
-      // Suscripción activa → modo edición
+      // Suscripción activa y vigente → edición
       req.modoLectura = false;
       next();
 
     } catch (error) {
       next(error);
     }
-  };
+};

@@ -83,7 +83,7 @@ exports.obtenerFirmaUsuario = async (req, res, next) => {
 
         const rutaFirma = path.resolve(__dirname, "../uploads/firmas", archivo);
         const rutaFinal = fs.existsSync(rutaFirma) ? rutaFirma : rutaDefault;
-
+        
         setCabecerasSinCacheImg(res);
         return res.status(200).sendFile(rutaFinal);
     } catch (error) {

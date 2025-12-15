@@ -63,12 +63,18 @@ const validarEmpresaId = async (req, res, next) => {
         }
 
         // Verificar existencia en la base de datos
-        const query = 'SELECT id FROM empresas WHERE id = $1';
-        const { rowCount } = await pool.query(query, [empresaId]);
+        const query = 'SELECT id, estado, owner FROM empresas WHERE id = $1';
+        const { rows } = await pool.query(query, [empresaId]);
 
-        if (rowCount === 0) {
+        if (rows.length === 0) {
             throwNotFoundError('La empresa seleccionada no existe.');
         }
+
+        req.empresa = {
+            id: rows[0].id,
+            estado: rows[0].estado,
+            owner: rows[0].owner
+        };
 
         next();
     } catch (error) {

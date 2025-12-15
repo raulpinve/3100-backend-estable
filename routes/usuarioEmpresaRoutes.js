@@ -1,12 +1,15 @@
 const express = require("express");
 const router = express.Router();
-
+const { validarUsuarioId } = require("../validators/perfilValidators");
+const modoSoloLectura = require("../middlewares/modoSoloLectura");
 const { obtenerEmpresas,
   obtenerEmpresasDeUsuario,
   asignarActualizarRolEmpresa,
   eliminarAccesoEmpresa,
 } = require("../controllers/usuarioEmpresaController");
-const { validarUsuarioId } = require("../validators/perfilValidators");
+
+// Aplica el modo solo lectura
+router.use(modoSoloLectura);
 
 // Obtener empresas
 router.get("/empresas", obtenerEmpresas);

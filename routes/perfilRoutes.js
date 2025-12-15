@@ -1,7 +1,11 @@
 const router = require('express').Router()
 const parseForm = require('../controllers/parseFormController');
-const perfilController = require("../controllers/perfilController")
+const perfilController = require("../controllers/perfilController");
+const modoSoloLectura = require('../middlewares/modoSoloLectura');
 const { validateEmail, validarActualizarPassword, validateActualizarPerfil, validarUsuarioId } = require('../validators/perfilValidators')
+
+// Aplica el modo solo lectura
+router.use(modoSoloLectura);
 
 // Actualizar e-mail
 router.put("/email", validateEmail, perfilController.actualizarEmail);

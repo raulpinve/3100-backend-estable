@@ -1,8 +1,11 @@
 const router = require('express').Router();
 const parseForm = require("../controllers/parseFormController");
 const firmasControllers = require("../controllers/firmasControllers");
+const modoSoloLectura = require('../middlewares/modoSoloLectura');
 
-/** Firmas */
+// Aplica el modo solo lectura
+router.use(modoSoloLectura);
+
 // Crear firma
 router.post("/", parseForm(), firmasControllers.crearFirma);
 

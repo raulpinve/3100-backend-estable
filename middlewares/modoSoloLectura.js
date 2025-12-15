@@ -1,7 +1,6 @@
 const { throwForbiddenError } = require("../errors/throwHTTPErrors");
 
 module.exports = function bloquearEdicionSiLectura(req, res, next) {
-
     if(req.modoLectura){
         const metodo = req.method;
         const metodosBloqueados = ["POST", "PUT", "PATCH", "DELETE"];

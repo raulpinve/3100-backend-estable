@@ -1,8 +1,9 @@
 const router = require("express").Router();
 const auditoriasController = require("../controllers/auditoriasController");
 const parseForm = require("../controllers/parseFormController");
+const modoSoloLectura = require("../middlewares/modoSoloLectura");
 const obtenerEmpresaId = require("../middlewares/obtenerEmpresa");
-const obtenerEmpresaAuditorias = require("../middlewares/obtenerEmpresaAuditorias");
+const validarEmpresaActiva = require("../middlewares/validarEmpresaActiva");
 const verificarPermisos = require("../middlewares/verificarPermisos");
 const { validarAuditoriaId, validarCrearAuditoria, validarEditarAuditoria} = require("../validators/auditoriasValidators");
 const { validarCriterioId } = require("../validators/criteriosValidators");
@@ -12,7 +13,8 @@ const { validarCrearFirma, validarFirmaId } = require("../validators/firmaValida
 // Agregar firma usuario registrado
 router.post("/:auditoriaId/firmas/usuario-registrado", 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("crear"),
     validarCrearFirma, 
     auditoriasController.agregarFirmaUsuarioRegistrado
@@ -21,7 +23,8 @@ router.post("/:auditoriaId/firmas/usuario-registrado",
 // Agregar firma usuario sin registrar
 router.post("/:auditoriaId/firmas/usuario-sin-registro", 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("crear"),
     parseForm(), 
     validarCrearFirma, 
@@ -31,7 +34,8 @@ router.post("/:auditoriaId/firmas/usuario-sin-registro",
 // Obtener firmas 
 router.get("/:auditoriaId/firmas", 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("leer"),
     auditoriasController.obtenerFirmas
 )
@@ -39,7 +43,8 @@ router.get("/:auditoriaId/firmas",
 router.delete("/firmas/:firmaId/:auditoriaId", 
     validarFirmaId, 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("eliminar"),
     auditoriasController.quitarFirma
 )
@@ -48,15 +53,17 @@ router.delete("/firmas/:firmaId/:auditoriaId",
 router.post("/", 
     validarCrearAuditoria, 
     obtenerEmpresaId,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("crear"),
     auditoriasController.crearAuditoria
 );
 
-// Obtener resultados de la auditoria por criterio -> Nueva ruta, 
-// cambiada antes era busqueda por servicio
+// Obtener resultados de la auditoria por criterio 
 router.get("/:auditoriaId/criterios/:criterioId/resultados", 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("leer"),
     validarCriterioId, 
     auditoriasController.obtenerResultadosAuditoriaPorCriterio
@@ -65,6 +72,8 @@ router.get("/:auditoriaId/criterios/:criterioId/resultados",
 // Obtener auditorías por empresa
 router.get("/:empresaId/empresa",
     validarEmpresaId,
+    validarEmpresaActiva,
+    modoSoloLectura,
     obtenerEmpresaId,
     verificarPermisos("leer"),
     auditoriasController.obtenerAuditoriasPorEmpresa
@@ -73,23 +82,26 @@ router.get("/:empresaId/empresa",
 // Obtener auditoría por ID
 router.get("/:auditoriaId", 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("leer"),
     auditoriasController.obtenerAuditoria
 );
 
-// Agregar criterios auditoría -> Ruta antes era de servicio, ahora es por criterio
+// Agregar criterios auditoría 
 router.post("/:auditoriaId/criterios", 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("crear"),
     auditoriasController.agregarCriteriosAuditoria
 );
 
-// Eliminar criterios auditoría -> Ruta antes era de servicio, ahora es por criterio
+// Eliminar criterios auditoría 
 router.delete("/:auditoriaId/criterios", 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("eliminar"),
     auditoriasController.eliminarCriteriosAuditoria
 );
@@ -97,7 +109,8 @@ router.delete("/:auditoriaId/criterios",
 // Descargar consolidado de auditoría
 router.get("/:auditoriaId/consolidado/download", 
     validarAuditoriaId,
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("leer"),
     auditoriasController.descargarConsolidado
 )
@@ -105,7 +118,8 @@ router.get("/:auditoriaId/consolidado/download",
 // Obtener consolidado de auditoría
 router.get("/:auditoriaId/consolidado", 
     validarAuditoriaId, 
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("leer"),
     auditoriasController.obtenerConsolidadoAuditoria
 )
@@ -113,7 +127,8 @@ router.get("/:auditoriaId/consolidado",
 // Actualizar auditoría
 router.put("/:auditoriaId",
     validarAuditoriaId,
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("editar"),
     validarEditarAuditoria,
     auditoriasController.actualizarAuditoria
@@ -122,7 +137,8 @@ router.put("/:auditoriaId",
 // Eliminar auditoría
 router.delete("/:auditoriaId",
     validarAuditoriaId,
-    obtenerEmpresaAuditorias,
+    validarEmpresaActiva,
+    modoSoloLectura,
     verificarPermisos("eliminar"),
     auditoriasController.eliminarAuditoria
 )

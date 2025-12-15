@@ -19,18 +19,17 @@ const validarToken = async (req, res, next) => {
         try {
             const decoded = jwt.verify(token, process.env.SECRET_KEY_JWT);
             
-            const { rows } = await pool.query(`
-                SELECT id, primer_nombre, apellidos, username, email, email_verificado, rol, avatar, avatar_thumbnail, owner
+            const { rows: rowsUsuario } = await pool.query(`
+                SELECT id, primer_nombre, apellidos, username, email, email_verificado, rol, avatar, avatar_thumbnail, owner, estado
                 FROM usuarios
                 WHERE username = $1 
             `, [decoded.username]);
 
-            const usuario = rows[0];
+            const usuario = rowsUsuario[0];
 
             if (!usuario) {
                 throwUnauthorizedError("El usuario no existe o fue eliminado.");
             }
-
             req.usuario = {
                 id: usuario.id,
                 primerNombre: usuario.primer_nombre,
@@ -39,6 +38,7 @@ const validarToken = async (req, res, next) => {
                 email: usuario.email,
                 emailVerificado: usuario.email_verificado,
                 rol: usuario.rol,
+                estado: usuario.estado,
                 owner: usuario.owner,
                 avatar: usuario.avatar ? generarTokenImagen("usuario", usuario.id) : null,
                 avatarThumbnail: usuario.avatar_thumbnail ? generarTokenImagen("usuario", usuario.id, true) : null

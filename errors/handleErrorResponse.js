@@ -2,7 +2,7 @@
 const handleHttpThrowErrors = require('./handleHTTPThrowErrors')
 
 // Main function to handle error responses of the application
-const handleErrorResponse = (err, req, res, next) => {  
+const handleErrorResponse = (err, req, res, next) => { 
     let errorObject;
     switch (err.name) {
         // Error 400: Handle bad request errors

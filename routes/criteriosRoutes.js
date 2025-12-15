@@ -1,14 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const criteriosController = require("../controllers/criteriosController");
-const {
-    validarCrearCriterio,
-    validarActualizarCriterio,
-    validarCriterioId
-} = require("../validators/criteriosValidators");
-
+const { validarCrearCriterio, validarActualizarCriterio, validarCriterioId} = require("../validators/criteriosValidators");
 const { validarGrupoId } = require("../validators/gruposValidators");
 const verificarPermisosEstandares = require("../middlewares/verificarPermisosEstandares");
+const modoSoloLectura = require("../middlewares/modoSoloLectura");
+
+// Aplica el modo solo lectura
+router.use(modoSoloLectura);
 
 // Crear criterio
 router.post("/", 

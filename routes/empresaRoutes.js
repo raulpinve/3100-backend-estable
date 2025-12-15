@@ -5,6 +5,10 @@ const { throwForbiddenError } = require('../errors/throwHTTPErrors');
 const obtenerEmpresaId = require('../middlewares/obtenerEmpresa');
 const verificarPermisos = require('../middlewares/verificarPermisos');
 const { validarPlan } = require('../controllers/validarPlan');
+const modoSoloLectura = require('../middlewares/modoSoloLectura');
+
+// Aplica el modo solo lectura
+router.use(modoSoloLectura);
 
 // Crear empresa
 router.post("/", 
