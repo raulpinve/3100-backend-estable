@@ -53,23 +53,16 @@ async function obtenerReferenciaPago(plan, periodo) {
 }
 
 function obtenerFechasPeriodo(meses) {
-    const today = new Date();
+  const inicio = new Date();
 
-    // Clonamos para no mutar la original
-    const future = new Date(today);
-    future.setMonth(future.getMonth() + meses);
+  const fin = new Date(inicio);
+  fin.setMonth(fin.getMonth() + meses);
+  fin.setHours(23, 59, 59, 999); // 👈 clave
 
-    const format = (d) => {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-    };
-
-    return {
-        fechaInicio: format(today),
-        fechaFin: format(future)
-    };
+  return {
+    fechaInicio: inicio,
+    fechaFin: fin
+  };
 }
 
 function validarFirma (event){

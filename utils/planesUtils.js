@@ -1,16 +1,15 @@
 exports.PLANES = {
-    prueba: { mensual: 100, trimestral: 300, semestral: 600, anual: 1200 },
     basico: {
-        mensual: 29000,
-        trimestral: 29000 * 3 * 0.90,
-        semestral: 29000 * 6 * 0.85,
-        anual: 29000 * 12 * 0.80
+        mensual: 1500,
+        trimestral: 1500 * 3 * 0.90,
+        semestral: 1500 * 6 * 0.85,
+        anual: 1500 * 12 * 0.80
     },
     estandar: {
-        mensual: 59900,
-        trimestral: 59900 * 3 * 0.90,
-        semestral: 59900 * 6 * 0.85,
-        anual: 59900 * 12 * 0.80
+        mensual: 2000,
+        trimestral: 2000 * 3 * 0.90,
+        semestral: 2000 * 6 * 0.85,
+        anual: 2000 * 12 * 0.80
     },
     premium: {
         mensual: 189000,
