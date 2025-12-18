@@ -1,7 +1,7 @@
 const { throwForbiddenError, throwServerError } = require("../errors/throwHTTPErrors");
 const { pool } = require("../initDB");
 const crypto = require("crypto");
-const { PLANES, LIMITES_PLANES } = require("../utils/planesUtils");
+const { PLANES, LIMITES_PLANES, NIVELES_PLANES } = require("../utils/planesUtils");
 
 // Función para crear el hash de la firma de integridad
 async function hashCadenaIntegridad(cadenaConcatenada) {
@@ -136,136 +136,134 @@ exports.crearReferenciaCompra = async function (req, res, next) {
 };
 
 exports.webhook = async function (req, res, next) {
-    const event = req.body;
-    const client = await pool.connect();
-    console.log("Webhook recibido!");
+  const event = req.body;
+  const client = await pool.connect();
+  console.log("Webhook recibido!");
 
-    try {
-        const isValid = validarFirma(event);
-        if (!isValid) {
-            return res.status(400).json({ error: "Firma inválida" });
-        }
-
-        if (event.event !== "transaction.updated") {
-            return res.status(200).json({ message: "Evento ignorado" });
-        }
-
-        const transaction = event.data.transaction;
-        const { status, reference } = transaction;
-
-        await client.query("BEGIN");
-
-        // 🔎 Buscar pago
-        const { rows } = await client.query(
-            `SELECT * FROM pagos_wompi WHERE referencia = $1 FOR UPDATE`,
-            [reference]
-        );
-
-        if (rows.length === 0) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({ error: "Referencia no encontrada" });
-        }
-
-        const pago = rows[0];
-
-        if (pago.estado === "aprobado") {
-            await client.query("COMMIT");
-            return res.status(200).json({ message: "Pago ya procesado" });
-        }
-
-        let nuevoEstado = "error";
-
-        if (status === "APPROVED") {
-            nuevoEstado = "aprobado";
-
-            const { usuario_id: usuarioId, plan, periodo } = pago;
-
-            // 🔕 Desactivar suscripción activa anterior
-            await client.query(
-                `UPDATE suscripciones
-                 SET estado = 'inactivo'
-                 WHERE usuario_id = $1 AND estado = 'activo'`,
-                [usuarioId]
-            );
-
-            const { fechaInicio, fechaFin } = obtenerFechasPeriodo(periodo);
-
-            // 📊 Contar recursos actuales
-            const { rows: empresasRows } = await client.query(
-                `SELECT id FROM empresas WHERE owner = $1`,
-                [usuarioId]
-            );
-
-            const { rows: usuariosRows } = await client.query(
-                `SELECT id, rol FROM usuarios WHERE owner = $1`,
-                [usuarioId]
-            );
-
-            const totalEmpresas = empresasRows.length;
-            const totalUsuarios = usuariosRows.length;
-
-            const limites = LIMITES_PLANES[plan];
-
-            const cubreTodo =
-                totalEmpresas <= limites.empresas &&
-                totalUsuarios <= limites.usuarios;
-
-            // 🧾 Crear nueva suscripción
-            await client.query(
-                `INSERT INTO suscripciones
-                (usuario_id, plan, estado, fecha_inicio, fecha_fin, cambio_plan, pendiente_desbloqueo)
-                VALUES ($1, $2, 'activo', $3, $4, true, $5)`,
-                [usuarioId, plan, fechaInicio, fechaFin, !cubreTodo]
-            );
-
-            if (cubreTodo) {
-                // ✅ Activar TODO automáticamente
-                await client.query(
-                    `UPDATE empresas SET estado = 'activo' WHERE owner = $1`,
-                    [usuarioId]
-                );
-
-                await client.query(
-                    `UPDATE usuarios SET estado = 'activo' WHERE owner = $1`,
-                    [usuarioId]
-                );
-            } else {
-                // 🔒 Bloquear recursos (flujo downgrade)
-                await client.query(
-                    `UPDATE empresas
-                     SET estado = 'bloqueado'
-                     WHERE owner = $1`,
-                    [usuarioId]
-                );
-
-                await client.query(
-                    `UPDATE usuarios
-                     SET estado = 'bloqueado'
-                     WHERE owner = $1 AND rol != 'owner'`,
-                    [usuarioId]
-                );
-            }
-        }
-        else if (status === "DECLINED") {
-            nuevoEstado = "fallido";
-        }
-
-        // 🔄 Actualizar estado del pago
-        await client.query(
-            `UPDATE pagos_wompi
-             SET estado = $1, actualizado_en = NOW()
-             WHERE referencia = $2`,
-            [nuevoEstado, reference]
-        );
-
-        await client.query("COMMIT");
-        console.log("Webhook procesado!");
-        res.status(200).json({ message: "Webhook procesado!" });
-
-    } catch (error) {
-        await client.query("ROLLBACK");
-        next(error);
-    } finally {
-        client.release();
+  try {
+    if (!validarFirma(event)) {
+      return res.status(400).json({ error: "Firma inválida" });
     }
+
+    if (event.event !== "transaction.updated") {
+      return res.status(200).json({ message: "Evento ignorado" });
+    }
+
+    const { status, reference } = event.data.transaction;
+
+    await client.query("BEGIN");
+
+    const { rows } = await client.query(
+      `SELECT * FROM pagos_wompi WHERE referencia = $1 FOR UPDATE`,
+      [reference]
+    );
+
+    if (!rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Referencia no encontrada" });
+    }
+
+    const pago = rows[0];
+
+    if (pago.estado === "aprobado") {
+      await client.query("COMMIT");
+      return res.status(200).json({ message: "Pago ya procesado" });
+    }
+
+    let nuevoEstado = "error";
+
+    if (status === "APPROVED") {
+      nuevoEstado = "aprobado";
+
+      const { usuario_id: usuarioId, plan, periodo } = pago;
+
+      // Inactivar suscripción anterior
+      await client.query(
+        `UPDATE suscripciones
+         SET estado = 'inactivo'
+         WHERE usuario_id = $1 AND estado = 'activo'`,
+        [usuarioId]
+      );
+
+      const { fechaInicio, fechaFin } = obtenerFechasPeriodo(periodo);
+      const limites = LIMITES_PLANES[plan];
+
+      // 📊 Conteo (OWNER CUENTA)
+      const { rowCount: empresasCount } = await client.query(
+        `SELECT 1 FROM empresas WHERE owner = $1`,
+        [usuarioId]
+      );
+
+      const { rowCount: auditoresCount } = await client.query(
+        `SELECT 1 FROM usuarios WHERE owner = $1`,
+        [usuarioId]
+      );
+
+      const totalUsuarios = auditoresCount + 1; // + owner
+
+      const cubreTodo =
+        empresasCount <= limites.empresas &&
+        totalUsuarios <= limites.usuarios;
+
+      // Crear nueva suscripción
+      await client.query(
+        `INSERT INTO suscripciones
+         (usuario_id, plan, estado, fecha_inicio, fecha_fin, cambio_plan, pendiente_desbloqueo)
+         VALUES ($1, $2, 'activo', $3, $4, true, $5)`,
+        [usuarioId, plan, fechaInicio, fechaFin, !cubreTodo]
+      );
+
+      // 🔒 Bloquear TODO excepto owner
+      await client.query(
+        `UPDATE empresas SET estado = 'bloqueado' WHERE owner = $1`,
+        [usuarioId]
+      );
+
+      await client.query(
+        `UPDATE usuarios
+         SET estado = 'bloqueado'
+         WHERE owner = $1`,
+        [usuarioId]
+      );
+
+      // 🔓 Activar TODO solo si cubre
+      if (cubreTodo) {
+        await client.query(
+          `UPDATE empresas SET estado = 'activo' WHERE owner = $1`,
+          [usuarioId]
+        );
+
+        await client.query(
+          `UPDATE usuarios SET estado = 'activo' WHERE owner = $1`,
+          [usuarioId]
+        );
+      }
+
+      // 🚫 Owner SIEMPRE activo
+      await client.query(
+        `UPDATE usuarios SET estado = 'activo' WHERE id = $1`,
+        [usuarioId]
+      );
+
+    } else if (status === "DECLINED") {
+      nuevoEstado = "fallido";
+    }
+
+    await client.query(
+      `UPDATE pagos_wompi
+       SET estado = $1, actualizado_en = NOW()
+       WHERE referencia = $2`,
+      [nuevoEstado, reference]
+    );
+
+    await client.query("COMMIT");
+    res.status(200).json({ message: "Webhook procesado correctamente" });
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
 };
+

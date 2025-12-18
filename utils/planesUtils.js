@@ -34,3 +34,9 @@ exports.LIMITES_PLANES = {
         usuarios: 15
     }
 };
+
+exports.NIVELES_PLANES = {
+  basico: 1,
+  estandar: 2,
+  premium: 3
+};
