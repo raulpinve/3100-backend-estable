@@ -29,6 +29,7 @@ const imageRoutes = require("./routes/imageRoutes");
 const pagosRoutes = require("./routes/pagosRoutes");
 const pagosController = require("./controllers/pagosController");
 const validarUsuarioActivo = require('./middlewares/validarUsuarioActivo');
+const suscripcionesRoutes = require("./routes/suscripcionesRoutes")
 
 // 1. Rutas públicas
 app.use("/auth", loginRoutes);
@@ -57,6 +58,7 @@ app.use("/criterios", criterioRoutes);
 app.use("/empresas", empresaRoutes);
 app.use("/grupos", gruposRoutes);
 app.use("/firmas", firmaRoutes);
+app.use("/suscripciones", suscripcionesRoutes)
 
 // 4. Manejo de errores
 app.use(handleErrorResponse);

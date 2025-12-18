@@ -1,33 +1,7 @@
-const { throwForbiddenError, throwServerError, throwBadRequestError } = require("../errors/throwHTTPErrors");
+const { throwForbiddenError, throwServerError } = require("../errors/throwHTTPErrors");
 const { pool } = require("../initDB");
 const crypto = require("crypto");
-
-const PLANES = {
-  basico: {
-    mensual: 29000,
-    trimestral: 29000 * 3 * 0.90,
-    semestral: 29000 * 6 * 0.85,
-    anual: 29000 * 12 * 0.80
-  },
-  estandar: {
-    mensual: 59900,
-    trimestral: 59900 * 3 * 0.90,
-    semestral: 59900 * 6 * 0.85,
-    anual: 59900 * 12 * 0.80
-  },
-  premium: {
-    mensual: 189000,
-    trimestral: 189000 * 3 * 0.90,
-    semestral: 189000 * 6 * 0.85,
-    anual: 189000 * 12 * 0.80
-  }
-};
-
-const nivelPlanes = {
-    "basico": 1,
-    "estandar": 2, 
-    "premium": 3    
-}
+const { PLANES, LIMITES_PLANES } = require("../utils/planesUtils");
 
 // Función para crear el hash de la firma de integridad
 async function hashCadenaIntegridad(cadenaConcatenada) {
@@ -153,7 +127,7 @@ exports.crearReferenciaCompra = async function (req, res, next) {
 
     return res.json({
       referencia,
-      monto, // centavos
+      monto,
       firmaIntegridad: hashHex
     });
   } catch (error) {
@@ -164,6 +138,7 @@ exports.crearReferenciaCompra = async function (req, res, next) {
 exports.webhook = async function (req, res, next) {
     const event = req.body;
     const client = await pool.connect();
+    console.log("Webhook recibido!");
 
     try {
         const isValid = validarFirma(event);
@@ -193,7 +168,6 @@ exports.webhook = async function (req, res, next) {
 
         const pago = rows[0];
 
-        // 🧠 Idempotencia
         if (pago.estado === "aprobado") {
             await client.query("COMMIT");
             return res.status(200).json({ message: "Pago ya procesado" });
@@ -206,59 +180,92 @@ exports.webhook = async function (req, res, next) {
 
             const { usuario_id: usuarioId, plan, periodo } = pago;
 
-            // Desactivar suscripciones previas
+            // 🔕 Desactivar suscripción activa anterior
             await client.query(
-                `UPDATE suscripciones 
-                SET estado = 'inactivo' 
-                WHERE usuario_id = $1 AND estado = 'activo'`,
+                `UPDATE suscripciones
+                 SET estado = 'inactivo'
+                 WHERE usuario_id = $1 AND estado = 'activo'`,
                 [usuarioId]
             );
 
             const { fechaInicio, fechaFin } = obtenerFechasPeriodo(periodo);
 
-
-            // Verificar si el usuario hizo downgrade
-            const {rows: ultimaSuscripcion} = await client.query(
-                `SELECT id, plan FROM suscripciones WHERE usuario_id = $1`, 
+            // 📊 Contar recursos actuales
+            const { rows: empresasRows } = await client.query(
+                `SELECT id FROM empresas WHERE owner = $1`,
                 [usuarioId]
-            )
-            let drowngrade = false;
-            if(ultimaSuscripcion.length > 0){
-                const planActual = ultimaSuscripcion[0].plan;
-                const nuevoPlan = pago.plan;
-
-                if(nivelPlanes[nuevoPlan] < nivelPlanes[planActual]){
-                    drowngrade = true;
-                }
-            }
-
-            // Crear nueva suscripción
-            await client.query(
-                `INSERT INTO suscripciones 
-                (usuario_id, plan, estado, fecha_inicio, fecha_fin, drowngrade)
-                VALUES ($1, $2, 'activo', $3, $4, $5)`,
-                [usuarioId, plan, fechaInicio, fechaFin]
             );
-        } 
+
+            const { rows: usuariosRows } = await client.query(
+                `SELECT id, rol FROM usuarios WHERE owner = $1`,
+                [usuarioId]
+            );
+
+            const totalEmpresas = empresasRows.length;
+            const totalUsuarios = usuariosRows.length;
+
+            const limites = LIMITES_PLANES[plan];
+
+            const cubreTodo =
+                totalEmpresas <= limites.empresas &&
+                totalUsuarios <= limites.usuarios;
+
+            // 🧾 Crear nueva suscripción
+            await client.query(
+                `INSERT INTO suscripciones
+                (usuario_id, plan, estado, fecha_inicio, fecha_fin, cambio_plan, pendiente_desbloqueo)
+                VALUES ($1, $2, 'activo', $3, $4, true, $5)`,
+                [usuarioId, plan, fechaInicio, fechaFin, !cubreTodo]
+            );
+
+            if (cubreTodo) {
+                // ✅ Activar TODO automáticamente
+                await client.query(
+                    `UPDATE empresas SET estado = 'activo' WHERE owner = $1`,
+                    [usuarioId]
+                );
+
+                await client.query(
+                    `UPDATE usuarios SET estado = 'activo' WHERE owner = $1`,
+                    [usuarioId]
+                );
+            } else {
+                // 🔒 Bloquear recursos (flujo downgrade)
+                await client.query(
+                    `UPDATE empresas
+                     SET estado = 'bloqueado'
+                     WHERE owner = $1`,
+                    [usuarioId]
+                );
+
+                await client.query(
+                    `UPDATE usuarios
+                     SET estado = 'bloqueado'
+                     WHERE owner = $1 AND rol != 'owner'`,
+                    [usuarioId]
+                );
+            }
+        }
         else if (status === "DECLINED") {
             nuevoEstado = "fallido";
         }
 
         // 🔄 Actualizar estado del pago
         await client.query(
-            `UPDATE pagos_wompi 
-            SET estado = $1, actualizado_en = NOW()
-            WHERE referencia = $2`,
+            `UPDATE pagos_wompi
+             SET estado = $1, actualizado_en = NOW()
+             WHERE referencia = $2`,
             [nuevoEstado, reference]
         );
 
         await client.query("COMMIT");
-        res.status(200).json({ message: "Webhook procesado" });
-        } catch (error) {
-            await client.query("ROLLBACK");
-            next(error);
-        } finally {
-            client.release();
-        }
-    };
+        console.log("Webhook procesado!");
+        res.status(200).json({ message: "Webhook procesado!" });
 
+    } catch (error) {
+        await client.query("ROLLBACK");
+        next(error);
+    } finally {
+        client.release();
+    }
+};

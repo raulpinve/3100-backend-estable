@@ -22,7 +22,7 @@ const validarToken = async (req, res, next) => {
             const { rows: rowsUsuario } = await pool.query(`
                 SELECT id, primer_nombre, apellidos, username, email, email_verificado, rol, avatar, avatar_thumbnail, owner, estado
                 FROM usuarios
-                WHERE username = $1 
+                WHERE username = $1 AND estado = 'activo'
             `, [decoded.username]);
 
             const usuario = rowsUsuario[0];
@@ -104,7 +104,7 @@ const login = async (req, res, next) => {
             SELECT id, primer_nombre, apellidos, email, username, rol,
                 password, avatar, avatar_thumbnail, email_verificado
             FROM   usuarios
-            WHERE  LOWER(username) = LOWER($1)
+            WHERE  LOWER(username) = LOWER($1) AND estado = 'activo'
         `, [username]);
 
         if (rows.length === 0) {
@@ -152,11 +152,11 @@ const obtenerUsuario = async (req, res, next) => {
 
         // Traer la suscripción más reciente
         const { rows: suscripcionRows } = await pool.query(
-            `SELECT plan, fecha_fin, estado
-             FROM suscripciones
-             WHERE usuario_id = $1
-             ORDER BY fecha_inicio DESC
-             LIMIT 1`,
+            `SELECT estado, fecha_fin, plan, cambio_plan, pendiente_desbloqueo
+            FROM suscripciones 
+            WHERE usuario_id = $1 AND estado = 'activo'
+            ORDER BY fecha_inicio DESC
+            LIMIT 1`,
             [usuarioId]
         );
 

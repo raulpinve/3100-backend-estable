@@ -88,7 +88,7 @@ const obtenerEmpresas = async (req, res, next) => {
         valores.push(tamanoPagina, offset);
 
         const dataQuery = `
-            SELECT id, nombre, owner, created_at
+            SELECT id, nombre, estado, owner, created_at
             FROM empresas
             WHERE ${filtros}
             ORDER BY created_at DESC NULLS LAST

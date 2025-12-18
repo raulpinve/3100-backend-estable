@@ -1,10 +1,10 @@
-const { throwServerError, throwForbiddenError } = require("../errors/throwHTTPErrors");
+const { throwForbiddenError } = require("../errors/throwHTTPErrors");
 const { pool } = require("../initDB");
 
 const PLAN_LIMITS = {
     basico:   { empresas: 1, auditores: 1 },
     estandar: { empresas: 3, auditores: 5 },
-    premium:  { empresas: 10, auditores: 10 }
+    premium:  { empresas: 10, auditores: 15 }
 };
 
 function validarPlan(tipo) {

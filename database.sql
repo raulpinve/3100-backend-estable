@@ -142,7 +142,8 @@ CREATE TABLE suscripciones (
     usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     plan TEXT NOT NULL CHECK (plan IN ('basico', 'estandar', 'premium')),
     estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'inactivo', 'cancelado')),
-    downgrade BOOLEAN NOT NULL DEFAULT false,
+    cambio_plan BOOLEAN NOT NULL DEFAULT false,          -- histórico
+    pendiente_desbloqueo BOOLEAN NOT NULL DEFAULT false  -- control de UI / flujo
     fecha_inicio TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_fin TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
