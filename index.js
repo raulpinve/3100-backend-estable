@@ -40,6 +40,9 @@ app.use(validarToken);
 app.use("/pagos", pagosRoutes);
 app.use("/perfiles", perfilRoutes);
 app.use("/usuarios", usuarioRoutes);
+app.use("/items-evaluacion", itemsEvaluacionRoutes);
+app.use("/criterios", criterioRoutes);
+app.use("/grupos", gruposRoutes);
 
 // 2. Validar suscripciones a las demás rutas
 /**
@@ -50,13 +53,10 @@ app.use(validarSuscripcion);
 app.use(validarUsuarioActivo);
 
 // 3. Rutas privadas
-app.use("/items-evaluacion", itemsEvaluacionRoutes);
 app.use("/resultados-items", resultadosItemsRoutes);
 app.use("/auditorias", auditoriasRoutes);
 app.use("/usuario-privilegios", usuarioEmpresaRoutes);
-app.use("/criterios", criterioRoutes);
 app.use("/empresas", empresaRoutes);
-app.use("/grupos", gruposRoutes);
 app.use("/firmas", firmaRoutes);
 app.use("/suscripciones", suscripcionesRoutes)
 
