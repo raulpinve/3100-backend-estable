@@ -65,26 +65,30 @@ function obtenerFechasPeriodo(meses) {
   };
 }
 
-function validarFirma (event){
+function validarFirma(event) {
+    if (
+        !event ||
+        !event.timestamp ||
+        !event.data ||
+        !event.data.transaction ||
+        !event.signature ||
+        !event.signature.checksum
+    ) {
+        return false;
+    }
+
     const timestamp = event.timestamp;
-    const {id: transactionId, status, amount_in_cents} = event.data.transaction;
+    const { id, status, amount_in_cents } = event.data.transaction;
 
-    // 1. Concatena los valores de las propiedaes del evento
-    let concatenatedValues = `${transactionId}${status}${amount_in_cents}`
-
-    // 2. Concatena el campo timestamp 
+    let concatenatedValues = `${id}${status}${amount_in_cents}`;
     concatenatedValues += timestamp;
+    concatenatedValues += process.env.EVENTS_KEY_PROD;
 
-    // 3. Concatena tu secreto
-    concatenatedValues += "test_events_fyyBqBHHzwt2tnC5rdlc5PalY6HQ3HH1"
-
-    // Genera el checksum con la llave secreta
     const checksum = crypto
-        .createHash('sha256')
+        .createHash("sha256")
         .update(concatenatedValues)
-        .digest('hex');
+        .digest("hex");
 
-    // Compara el checksum generado con el recibido
     return checksum === event.signature.checksum;
 }
 
@@ -134,6 +138,12 @@ exports.webhook = async function (req, res, next) {
   console.log("Webhook recibido!");
 
   try {
+
+     // ⛔️ Si no tiene estructura mínima
+    if (!event || !event.event) {
+        return res.status(200).json({ message: "Evento ignorado" });
+    }
+
     if (!validarFirma(event)) {
       return res.status(400).json({ error: "Firma inválida" });
     }
