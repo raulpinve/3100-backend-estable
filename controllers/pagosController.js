@@ -138,10 +138,9 @@ exports.webhook = async function (req, res, next) {
   console.log("Webhook recibido!");
 
   try {
-
-     // ⛔️ Si no tiene estructura mínima
+    // ⛔️ Validaciones básicas
     if (!event || !event.event) {
-        return res.status(200).json({ message: "Evento ignorado" });
+      return res.status(200).json({ message: "Evento ignorado" });
     }
 
     if (!validarFirma(event)) {
@@ -156,6 +155,7 @@ exports.webhook = async function (req, res, next) {
 
     await client.query("BEGIN");
 
+    // 🔒 Bloqueo para lectura y escritura
     const { rows } = await client.query(
       `SELECT * FROM pagos_wompi WHERE referencia = $1 FOR UPDATE`,
       [reference]
@@ -168,7 +168,9 @@ exports.webhook = async function (req, res, next) {
 
     const pago = rows[0];
 
-    if (pago.estado === "aprobado") {
+    // ✅ Si ya está en estado final, ignorar
+    const ESTADOS_FINALES = ["aprobado"];
+    if (ESTADOS_FINALES.includes(pago.estado)) {
       await client.query("COMMIT");
       return res.status(200).json({ message: "Pago ya procesado" });
     }
@@ -191,7 +193,7 @@ exports.webhook = async function (req, res, next) {
       const { fechaInicio, fechaFin } = obtenerFechasPeriodo(periodo);
       const limites = LIMITES_PLANES[plan];
 
-      // 📊 Conteo (OWNER CUENTA)
+      // Conteo de recursos
       const { rowCount: empresasCount } = await client.query(
         `SELECT 1 FROM empresas WHERE owner = $1`,
         [usuarioId]
@@ -203,10 +205,17 @@ exports.webhook = async function (req, res, next) {
       );
 
       const totalUsuarios = auditoresCount + 1; // + owner
-
       const cubreTodo =
         empresasCount <= limites.empresas &&
         totalUsuarios <= limites.usuarios;
+
+      // 🔐 Actualiza pago antes de crear suscripción
+      await client.query(
+        `UPDATE pagos_wompi
+         SET estado = $1, actualizado_en = NOW()
+         WHERE referencia = $2`,
+        [nuevoEstado, reference]
+      );
 
       // Crear nueva suscripción
       await client.query(
@@ -223,13 +232,11 @@ exports.webhook = async function (req, res, next) {
       );
 
       await client.query(
-        `UPDATE usuarios
-         SET estado = 'bloqueado'
-         WHERE owner = $1`,
+        `UPDATE usuarios SET estado = 'bloqueado' WHERE owner = $1 AND id != $1`,
         [usuarioId]
       );
 
-      // 🔓 Activar TODO solo si cubre
+      // 🔓 Activar solo si cumple límites
       if (cubreTodo) {
         await client.query(
           `UPDATE empresas SET estado = 'activo' WHERE owner = $1`,
@@ -242,22 +249,23 @@ exports.webhook = async function (req, res, next) {
         );
       }
 
-      // 🚫 Owner SIEMPRE activo
+      // 🚫 Owner siempre activo
       await client.query(
         `UPDATE usuarios SET estado = 'activo' WHERE id = $1`,
         [usuarioId]
       );
 
     } else if (status === "DECLINED") {
-      nuevoEstado = "fallido";
-    }
+      // ❌ No permitimos retroceder desde aprobado
+      nuevoEstado = pago.estado === "aprobado" ? pago.estado : "fallido";
 
-    await client.query(
-      `UPDATE pagos_wompi
-       SET estado = $1, actualizado_en = NOW()
-       WHERE referencia = $2`,
-      [nuevoEstado, reference]
-    );
+      await client.query(
+        `UPDATE pagos_wompi
+         SET estado = $1, actualizado_en = NOW()
+         WHERE referencia = $2`,
+        [nuevoEstado, reference]
+      );
+    }
 
     await client.query("COMMIT");
     res.status(200).json({ message: "Webhook procesado correctamente" });
