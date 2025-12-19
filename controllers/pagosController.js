@@ -66,30 +66,24 @@ function obtenerFechasPeriodo(meses) {
 }
 
 function validarFirma(event) {
-    if (
-        !event ||
-        !event.timestamp ||
-        !event.data ||
-        !event.data.transaction ||
-        !event.signature ||
-        !event.signature.checksum
-    ) {
+    try {
+        const timestamp = event?.timestamp;
+        const transaction = event?.data?.transaction;
+        const checksum = event?.signature?.checksum;
+
+        if (!timestamp || !transaction || !checksum) return false;
+
+        const { id, status, amount_in_cents } = transaction;
+
+        const concatenatedValues = `${id}${status}${amount_in_cents}${timestamp}${process.env.EVENTS_KEY_PROD}`;
+
+        const hash = crypto.createHash("sha256").update(concatenatedValues).digest("hex");
+
+        return hash === checksum;
+    } catch (err) {
+        console.log("Error validando firma:", err);
         return false;
     }
-
-    const timestamp = event.timestamp;
-    const { id, status, amount_in_cents } = event.data.transaction;
-
-    let concatenatedValues = `${id}${status}${amount_in_cents}`;
-    concatenatedValues += timestamp;
-    concatenatedValues += process.env.EVENTS_KEY_PROD;
-
-    const checksum = crypto
-        .createHash("sha256")
-        .update(concatenatedValues)
-        .digest("hex");
-
-    return checksum === event.signature.checksum;
 }
 
 exports.crearReferenciaCompra = async function (req, res, next) {
